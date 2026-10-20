@@ -1,0 +1,12 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import Plan from '../models/Plan.js';
+import { allowRoles, requireAuth } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
+const router = Router();
+const body = z.object({ name:z.string().trim().min(2).max(80),description:z.string().max(500).optional(),pricePaise:z.number().int().min(0),durationDays:z.number().int().min(1).max(730),features:z.array(z.string().max(120)).max(20).optional(),active:z.boolean().optional() });
+router.get('/', async (_req,res,next) => { try { res.json({items:await Plan.find({active:true}).sort({pricePaise:1})}); } catch(e){next(e);} });
+router.post('/', requireAuth, allowRoles('admin'), validate(z.object({body})), async (req,res,next) => { try { res.status(201).json({item:await Plan.create(req.body)}); } catch(e){next(e);} });
+router.patch('/:id', requireAuth, allowRoles('admin'), async (req,res,next) => { try { const item=await Plan.findByIdAndUpdate(req.params.id,body.partial().parse(req.body),{new:true,runValidators:true}); if(!item)return res.status(404).json({message:'Plan not found'}); res.json({item}); } catch(e){next(e);} });
+router.delete('/:id', requireAuth, allowRoles('admin'), async (req,res,next) => { try { const item=await Plan.findByIdAndUpdate(req.params.id,{active:false},{new:true}); if(!item)return res.status(404).json({message:'Plan not found'}); res.status(204).end(); } catch(e){next(e);} });
+export default router;

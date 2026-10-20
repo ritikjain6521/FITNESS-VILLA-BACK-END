@@ -1,0 +1,11 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import Workout from '../models/Workout.js';
+import User from '../models/User.js';
+import { allowRoles, requireAuth } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
+const router=Router();router.use(requireAuth);
+const schema=z.object({body:z.object({member:z.string().length(24),title:z.string().min(2).max(100),exercises:z.array(z.object({name:z.string().min(1).max(100),sets:z.number().int().min(1).max(50),reps:z.string().min(1).max(30),notes:z.string().max(300).optional()})).min(1).max(50),notes:z.string().max(1000).optional()})});
+router.get('/',async(req,res,next)=>{try{const filter:any={};if(req.user!.role==='member')filter.member=req.user!.id;else if(req.user!.role==='trainer')filter.trainer=req.user!.id;const items=await Workout.find(filter).populate('member','name email').populate('trainer','name').sort({createdAt:-1}).limit(300);res.json({items});}catch(e){next(e);}});
+router.post('/',allowRoles('admin','trainer'),validate(schema),async(req,res,next)=>{try{const member=await User.findOne({_id:req.body.member,role:'member',active:true});if(!member)return res.status(404).json({message:'Active member not found'});const item=await Workout.create({...req.body,trainer:req.user!.role==='trainer'?req.user!.id:(member.assignedTrainer||req.user!.id)});res.status(201).json({item});}catch(e){next(e);}});
+export default router;

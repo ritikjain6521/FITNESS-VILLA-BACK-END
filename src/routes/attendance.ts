@@ -1,0 +1,12 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import Attendance from '../models/Attendance.js';
+import User from '../models/User.js';
+import Membership from '../models/Membership.js';
+import { allowRoles, requireAuth } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
+const router=Router();router.use(requireAuth);
+router.get('/',allowRoles('admin','staff','trainer'),async(req,res,next)=>{try{const filter:any={};if(req.query.date){const d=new Date(String(req.query.date));if(Number.isNaN(d.getTime()))return res.status(400).json({message:'Invalid date'});const start=new Date(d);start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+1);filter.checkInAt={$gte:start,$lt:end};}const items=await Attendance.find(filter).populate('member','name email').sort({checkInAt:-1}).limit(500);res.json({items});}catch(e){next(e);}});
+router.post('/',allowRoles('admin','staff'),validate(z.object({body:z.object({member:z.string().length(24)})})),async(req,res,next)=>{try{const member=await User.findOne({_id:req.body.member,role:'member',active:true});if(!member)return res.status(404).json({message:'Active member not found'});const active=await Membership.findOne({member:member.id,status:'active',startDate:{$lte:new Date()},endDate:{$gte:new Date()}});if(!active)return res.status(409).json({message:'Member has no active membership'});const existing=await Attendance.findOne({member:member.id,checkOutAt:{$exists:false}});if(existing)return res.status(409).json({message:'Member is already checked in'});const item=await Attendance.create({member:member.id,recordedBy:req.user!.id});res.status(201).json({item});}catch(e){next(e);}});
+router.patch('/:id/checkout',allowRoles('admin','staff'),async(req,res,next)=>{try{const item=await Attendance.findOneAndUpdate({_id:req.params.id,checkOutAt:{$exists:false}},{checkOutAt:new Date()},{new:true});if(!item)return res.status(404).json({message:'Open attendance record not found'});res.json({item});}catch(e){next(e);}});
+export default router;
