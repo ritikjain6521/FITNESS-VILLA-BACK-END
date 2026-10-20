@@ -8,6 +8,6 @@ async function start() {
   if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required');
   await mongoose.connect(process.env.MONGODB_URI);
   initCronJobs();
-  app.listen(port, () => console.log(`IronPulse API listening on ${port}`));
+  app.listen(port, () => console.log(`Fitness Villa API listening on ${port}`));
 }
 start().catch((err) => { console.error('Startup failed', err); process.exit(1); });

@@ -69,7 +69,7 @@ router.get('/export', async (_req, res, next) => {
 
     const backupData = {
       meta: {
-        platform: 'IronPulse Gym Platform',
+        platform: 'Fitness Villa Platform',
         version: '1.0.0',
         exportedAt: new Date().toISOString(),
         counts: {
@@ -104,7 +104,7 @@ router.get('/export', async (_req, res, next) => {
     };
 
     const dateStr = new Date().toISOString().split('T')[0];
-    const filename = `ironpulse-backup-${dateStr}.json`;
+    const filename = `fitnessvilla-backup-${dateStr}.json`;
 
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

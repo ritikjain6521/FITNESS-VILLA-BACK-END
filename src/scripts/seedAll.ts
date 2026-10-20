@@ -68,9 +68,9 @@ async function main() {
       gstEnabled: true,
       gstin: '07AAAAA0000A1Z5',
       defaultTaxRate: 18,
-      receiptPrefix: 'IP',
-      memberIdPrefix: 'MBR',
-      instagramUrl: 'https://instagram.com/ironpulse_gym',
+      receiptPrefix: 'FV',
+      memberIdPrefix: 'FV',
+      instagramUrl: 'https://instagram.com/fitnessvilla_gym',
     });
     console.log('Created default GymSettings');
   }
@@ -98,7 +98,7 @@ async function main() {
       description: 'Our premier all-inclusive tier with unlimited perks and priority access.',
       pricePaise: 1799900,
       durationDays: 365,
-      features: ['Full 365-day 24/7 club access', '4 Personal training sessions', 'Exclusive IronPulse apparel kit', '5 Complimentary guest passes', 'Locker reservation'],
+      features: ['Full 365-day 24/7 club access', '4 Personal training sessions', 'Exclusive Fitness Villa apparel kit', '5 Complimentary guest passes', 'Locker reservation'],
       active: true,
     },
   ];
@@ -238,9 +238,9 @@ async function main() {
   const productsData = [
     {
       sku: 'SUP-WHEY-01',
-      name: 'IronPulse 100% Whey Isolate (Double Chocolate 2kg)',
+      name: 'Fitness Villa 100% Whey Isolate (Double Chocolate 2kg)',
       category: 'Supplements',
-      brand: 'IronPulse Nutrition',
+      brand: 'Fitness Villa Nutrition',
       unit: 'jar',
       purchasePricePaise: 340000,
       sellingPricePaise: 499900,
@@ -274,9 +274,9 @@ async function main() {
     },
     {
       sku: 'ACC-SHK-01',
-      name: 'IronPulse Matte Black Stainless Steel Shaker (750ml)',
+      name: 'Fitness Villa Matte Black Stainless Steel Shaker (750ml)',
       category: 'Accessories',
-      brand: 'IronPulse',
+      brand: 'Fitness Villa',
       unit: 'pc',
       purchasePricePaise: 35000,
       sellingPricePaise: 79900,
@@ -288,7 +288,7 @@ async function main() {
       sku: 'ACC-STR-01',
       name: 'Heavy-Duty Padded Cotton Lifting Straps',
       category: 'Accessories',
-      brand: 'IronPulse',
+      brand: 'Fitness Villa',
       unit: 'pair',
       purchasePricePaise: 20000,
       sellingPricePaise: 49900,
@@ -300,7 +300,7 @@ async function main() {
       sku: 'ACC-GLV-01',
       name: 'Pro Ventilated Leather Gym Gloves with Wrist Wrap (L)',
       category: 'Accessories',
-      brand: 'IronPulse',
+      brand: 'Fitness Villa',
       unit: 'pair',
       purchasePricePaise: 42000,
       sellingPricePaise: 89900,

@@ -1,8 +1,8 @@
 import mongoose, { Schema } from 'mongoose';
 
 const schema = new Schema({
-  gymName: { type: String, default: 'IronPulse Fitness Club', maxlength: 100 },
-  tagline: { type: String, default: '', maxlength: 200 },
+  gymName: { type: String, default: 'Fitness Villa', maxlength: 100 },
+  tagline: { type: String, default: 'Luxury Strength & Performance Club', maxlength: 200 },
   logo: { type: String, default: '' },
   address: { type: String, default: '', maxlength: 400 },
   phone: { type: String, default: '', maxlength: 25 },
@@ -17,9 +17,9 @@ const schema = new Schema({
   gstin: { type: String, default: '', maxlength: 20 },
   defaultTaxRate: { type: Number, default: 0, min: 0, max: 100 }, // percent
   // Receipt
-  receiptPrefix: { type: String, default: 'IP', maxlength: 10 },
+  receiptPrefix: { type: String, default: 'FV', maxlength: 10 },
   receiptCounter: { type: Number, default: 0, min: 0 },
-  memberIdPrefix: { type: String, default: 'MBR', maxlength: 10 },
+  memberIdPrefix: { type: String, default: 'FV', maxlength: 10 },
   memberCounter: { type: Number, default: 0, min: 0 },
   // Reminder intervals (days before expiry)
   reminderDaysBefore: { type: [Number], default: [7, 3, 0] },

@@ -76,7 +76,7 @@ app.use(rateLimit({
   skip: (req) => req.method === 'OPTIONS'
 }));
 
-app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'ironpulse-api' }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'fitness-villa-api' }));
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/members', memberRoutes);

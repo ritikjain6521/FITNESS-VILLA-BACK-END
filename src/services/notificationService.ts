@@ -108,7 +108,7 @@ export async function sendEmailDirect({
   text?: string;
 }) {
   const settings = await GymSettings.findOne();
-  const from = settings?.smtpFrom || settings?.email || 'noreply@ironpulse.fit';
+  const from = settings?.smtpFrom || settings?.email || 'noreply@fitnessvilla.in';
   const transporter = await createNodemailerTransporter();
   const info = await transporter.sendMail({
     from: `"${settings?.gymName || 'Fitness Villa'}" <${from}>`,
