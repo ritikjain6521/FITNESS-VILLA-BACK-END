@@ -20,10 +20,61 @@ import backupRoutes from './routes/backup.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 
 const app = express();
-app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL?.split(',') || 'http://localhost:5173', credentials: true }));
+
+// Trust reverse proxy (required for Render / Railway / Vercel proxy headers)
+app.set('trust proxy', 1);
+
+// Configure Helmet with crossOriginResourcePolicy allowing cross-origin assets/responses
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+
+const allowedOrigins = [
+  'https://fitness-villa-front-end.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://localhost:4173',
+  ...(process.env.CLIENT_URL
+    ? process.env.CLIENT_URL.split(',').map((url) => url.trim().replace(/\/+$/, ''))
+    : [])
+].filter(Boolean);
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser requests (mobile apps, server-to-server, curl, Postman)
+    if (!origin) return callback(null, true);
+
+    const normalized = origin.trim().replace(/\/+$/, '');
+    const isAllowed =
+      allowedOrigins.includes(normalized) ||
+      /^https:\/\/fitness-villa-front-end.*\.vercel\.app$/.test(normalized);
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      console.warn(`[CORS] Blocked request from origin: ${origin}`);
+      callback(null, false);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Disposition'],
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
 app.use(express.json({ limit: '2mb' }));
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 500, standardHeaders: true, legacyHeaders: false }));
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS'
+}));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'ironpulse-api' }));
 
