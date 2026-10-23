@@ -17,6 +17,8 @@ import settingsRoutes from './routes/settings.js';
 import reportsRoutes from './routes/reports.js';
 import notificationRoutes from './routes/notifications.js';
 import backupRoutes from './routes/backup.js';
+import announcementRoutes from './routes/announcements.js';
+import renewalRequestRoutes from './routes/renewalRequests.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 
 const app = express();
@@ -67,7 +69,8 @@ const corsOptions: cors.CorsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 500,
@@ -93,6 +96,8 @@ app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/reports', reportsRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/backup', backupRoutes);
+app.use('/api/v1/announcements', announcementRoutes);
+app.use('/api/v1/renewal-requests', renewalRequestRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

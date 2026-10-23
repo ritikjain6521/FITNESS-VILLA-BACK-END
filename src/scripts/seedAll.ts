@@ -11,6 +11,7 @@ import Expense from '../models/Expense.js';
 import Product from '../models/Product.js';
 import GymSettings from '../models/GymSettings.js';
 import Enquiry from '../models/Enquiry.js';
+import Announcement from '../models/Announcement.js';
 
 async function main() {
   const uri = process.env.MONGODB_URI;
@@ -368,6 +369,47 @@ async function main() {
       },
     ]);
     console.log('Created sample enquiries');
+  }
+
+  // 10. Sample Announcements & Member Offers
+  const existingAnnouncements = await Announcement.countDocuments();
+  if (existingAnnouncements === 0) {
+    const nextMonth = new Date();
+    nextMonth.setDate(nextMonth.getDate() + 30);
+
+    await Announcement.create([
+      {
+        title: 'Festival Special: 20% Off on Annual Plan Renewals',
+        content: 'Renew your membership early or upgrade to the Annual Iron Elite plan this month and enjoy a flat 20% discount plus 2 complimentary personal training sessions!',
+        type: 'offer',
+        priority: 'high',
+        badge: '20% OFF',
+        discountPercent: 20,
+        validUntil: nextMonth,
+        isActive: true,
+        createdBy: admin._id,
+      },
+      {
+        title: 'New HYROX & Functional Performance Zone Open',
+        content: 'We have upgraded our turf area with sled tracks, skiergs, rogue kettlebells, and plyo platforms. Free functional strength orientation every Saturday at 10 AM.',
+        type: 'announcement',
+        priority: 'normal',
+        badge: 'NEW FACILITY',
+        isActive: true,
+        createdBy: admin._id,
+      },
+      {
+        title: 'Mobility & Recovery Workshop with Coach Marcus',
+        content: 'Join our certified strength coaches this Sunday at 11 AM for an exclusive myofascial release, hip mobility, and sauna recovery masterclass.',
+        type: 'event',
+        priority: 'normal',
+        badge: 'WORKSHOP',
+        validUntil: nextMonth,
+        isActive: true,
+        createdBy: admin._id,
+      },
+    ]);
+    console.log('Created sample announcements & offers');
   }
 
   console.log('✅ Seeding completed successfully!');

@@ -7,9 +7,113 @@ import Payment from '../models/Payment.js';
 import Expense from '../models/Expense.js';
 import Member from '../models/Member.js';
 import Enquiry from '../models/Enquiry.js';
+import Announcement from '../models/Announcement.js';
+import RenewalRequest from '../models/RenewalRequest.js';
+import GymSettings from '../models/GymSettings.js';
 
 const router = Router();
 router.use(requireAuth);
+
+// --- Member self-service dashboard (before admin-only guard) ---
+router.get('/member-summary', async (req, res, next) => {
+  try {
+    const memberId = req.user!.id;
+    const now = new Date();
+    const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+    const todayEnd = new Date(todayStart); todayEnd.setDate(todayEnd.getDate()+1);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [
+      user,
+      memberDoc,
+      activeMembership,
+      allMemberships,
+      totalAttendance,
+      monthAttendance,
+      recentAttendance,
+      paidPayments,
+      pendingPayments,
+      announcements,
+      renewalRequests,
+      settings,
+    ] = await Promise.all([
+      User.findById(memberId).select('name email phone role active status statusReason createdAt assignedTrainer').populate('assignedTrainer', 'name email phone'),
+      Member.findOne({ user: memberId }),
+      Membership.findOne({ member: memberId, status: 'active' })
+        .populate('plan', 'name pricePaise durationDays features description'),
+      Membership.find({ member: memberId })
+        .populate('plan', 'name pricePaise durationDays')
+        .sort({ createdAt: -1 }),
+      Attendance.countDocuments({ member: memberId }),
+      Attendance.countDocuments({
+        member: memberId,
+        checkInAt: { $gte: monthStart },
+      }),
+      Attendance.find({ member: memberId })
+        .sort({ checkInAt: -1 }).limit(10),
+      Payment.find({ member: memberId, status: 'paid' })
+        .populate({ path: 'membership', populate: { path: 'plan', select: 'name pricePaise' } })
+        .sort({ paidAt: -1, createdAt: -1 }).limit(20),
+      Payment.find({ member: memberId, status: 'pending' })
+        .populate({ path: 'membership', populate: { path: 'plan', select: 'name pricePaise' } })
+        .sort({ createdAt: -1 }),
+      Announcement.find({
+        isActive: true,
+        $or: [{ validUntil: { $exists: false } }, { validUntil: null }, { validUntil: { $gte: now } }],
+      }).sort({ priority: -1, createdAt: -1 }).limit(5),
+      RenewalRequest.find({ member: memberId })
+        .populate('requestedPlan', 'name pricePaise durationDays features')
+        .sort({ createdAt: -1 }).limit(5),
+      GymSettings.findOne().lean(),
+    ]);
+
+    const totalPaidPaise = paidPayments.reduce((s, p) => s + p.amountPaise, 0);
+
+    // Calculate outstanding dues:
+    // If active membership has an unpaid balance or if there are pending payment records
+    let outstandingDuePaise = pendingPayments.reduce((s, p) => s + p.amountPaise, 0);
+    if (activeMembership && activeMembership.plan) {
+      const planPricePaise = (activeMembership.plan as any).pricePaise || 0;
+      const paidForActive = paidPayments
+        .filter((p: any) => p.membership && String(p.membership._id || p.membership) === String(activeMembership._id))
+        .reduce((s, p) => s + p.amountPaise, 0);
+      const membershipDue = Math.max(0, planPricePaise - paidForActive);
+      // Avoid double counting if already captured in pendingPayments
+      const pendingForActive = pendingPayments
+        .filter((p: any) => p.membership && String(p.membership._id || p.membership) === String(activeMembership._id))
+        .reduce((s, p) => s + p.amountPaise, 0);
+      if (membershipDue > pendingForActive) {
+        outstandingDuePaise += (membershipDue - pendingForActive);
+      }
+    }
+
+    res.json({
+      user,
+      memberDoc,
+      activeMembership,
+      allMemberships,
+      totalAttendance,
+      monthAttendance,
+      recentAttendance,
+      payments: paidPayments,
+      pendingPayments,
+      totalPaidPaise,
+      outstandingDuePaise,
+      announcements,
+      renewalRequests,
+      gymInfo: {
+        gymName: settings?.gymName || 'Fitness Villa',
+        tagline: settings?.tagline || 'Luxury Fitness Club',
+        phone: settings?.phone || settings?.whatsapp || '',
+        email: settings?.email || '',
+        address: settings?.address || '',
+        currency: settings?.currency || 'INR',
+      },
+    });
+  } catch (e) { next(e); }
+});
+
+// --- Admin/Staff only routes below ---
 router.use(allowRoles('admin', 'staff'));
 
 router.get('/kpis', async (req, res, next) => {

@@ -7,13 +7,25 @@ import { validate } from '../middleware/validate.js';
 const router = Router();
 router.post('/login', validate(z.object({ body: z.object({ email: z.string().email().max(254), password: z.string().min(8).max(128) }) })), async (req, res, next) => {
   try {
-    const user = await User.findOne({ email: req.body.email.toLowerCase(), active: true }).select('+passwordHash');
+    const user = await User.findOne({ email: req.body.email.toLowerCase() }).select('+passwordHash');
     if (!user || !(await bcrypt.compare(req.body.password, user.passwordHash))) return res.status(401).json({ message: 'Invalid email or password' });
-    res.json({ token: signAccessToken(user), user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    
+    if (user.status === 'suspended') {
+      return res.status(403).json({ message: `Account suspended. ${user.statusReason ? `Reason: ${user.statusReason}. ` : ''}Please contact gym reception.` });
+    }
+    if (user.status === 'blocked' || user.active === false) {
+      return res.status(403).json({ message: `Account access blocked. ${user.statusReason ? `Reason: ${user.statusReason}. ` : ''}Please contact gym reception.` });
+    }
+
+    res.json({ token: signAccessToken(user), user: { id: user.id, name: user.name, email: user.email, role: user.role, status: user.status } });
   } catch (e) { next(e); }
 });
 router.get('/me', requireAuth, async (req, res, next) => {
-  try { const user = await User.findById(req.user!.id).select('name email phone role active'); if (!user) return res.status(404).json({ message: 'User not found' }); res.json({ user }); }
+  try {
+    const user = await User.findById(req.user!.id).select('name email phone role active status statusReason createdAt');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ user });
+  }
   catch (e) { next(e); }
 });
 export default router;

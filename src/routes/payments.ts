@@ -6,6 +6,7 @@ import Payment from '../models/Payment.js';
 import User from '../models/User.js';
 import Membership from '../models/Membership.js';
 import GymSettings from '../models/GymSettings.js';
+import AuditLog from '../models/AuditLog.js';
 import { allowRoles, requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { generatePaymentReceiptWhatsApp, formatWhatsAppUrl } from '../services/notificationService.js';
@@ -13,16 +14,22 @@ import { generatePaymentReceiptWhatsApp, formatWhatsAppUrl } from '../services/n
 const router = Router();
 router.use(requireAuth);
 
-function generateReceiptNo(prefix = 'IP'): string {
+function generateReceiptNo(prefix = 'FV'): string {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const rand = Math.floor(1000 + Math.random() * 9000);
   return `${prefix}-${date}-${rand}`;
 }
 
 // 1. List payments
-router.get('/', allowRoles('admin', 'staff'), async (_req, res, next) => {
+router.get('/', allowRoles('admin', 'staff', 'member'), async (req, res, next) => {
   try {
-    const items = await Payment.find()
+    const filter: any = {};
+    if (req.user!.role === 'member') {
+      filter.member = req.user!.id;
+    } else if (req.query.member) {
+      filter.member = req.query.member;
+    }
+    const items = await Payment.find(filter)
       .populate('member', 'name email phone')
       .populate({
         path: 'membership',
@@ -37,13 +44,18 @@ router.get('/', allowRoles('admin', 'staff'), async (_req, res, next) => {
 });
 
 // 2. Outstanding dues & balance tracking
-router.get('/dues', allowRoles('admin', 'staff'), async (_req, res, next) => {
+router.get('/dues', allowRoles('admin', 'staff', 'member'), async (req, res, next) => {
   try {
     const settings = await GymSettings.findOne().lean();
     const gymName = settings?.gymName || 'Fitness Villa';
     const gymPhone = settings?.phone || settings?.whatsapp || '';
 
-    const memberships = await Membership.find({ status: { $in: ['active', 'pending'] } })
+    const membershipFilter: any = { status: { $in: ['active', 'pending'] } };
+    if (req.user!.role === 'member') {
+      membershipFilter.member = req.user!.id;
+    }
+
+    const memberships = await Membership.find(membershipFilter)
       .populate('member', 'name email phone')
       .populate('plan', 'name pricePaise durationDays')
       .sort({ createdAt: -1 });
@@ -131,6 +143,20 @@ router.post(
 
       const whatsapp = generatePaymentReceiptWhatsApp(populatedPayment, member, settings);
 
+      await AuditLog.create({
+        actor: req.user!.id,
+        actorEmail: req.user!.email,
+        action: 'payment.record_manual',
+        targetModel: 'Payment',
+        targetId: item.id,
+        after: {
+          member: member.id,
+          amountPaise: item.amountPaise,
+          method: item.method,
+          receiptNumber: item.receiptNumber,
+        },
+      });
+
       res.status(201).json({
         item: populatedPayment,
         whatsappReceiptUrl: whatsapp.url,
@@ -161,6 +187,150 @@ router.get('/:id/receipt', allowRoles('admin', 'staff', 'member'), async (req, r
 
     const settings = await GymSettings.findOne().lean();
     const whatsapp = generatePaymentReceiptWhatsApp(payment, payment.member, settings);
+
+    // If client requested HTML or opened directly in browser tab with token:
+    const wantsHtml = req.query.format === 'html' || req.headers.accept?.includes('text/html');
+    if (wantsHtml) {
+      const amountPaise = payment.amountPaise || 0;
+      const amountInRupees = (amountPaise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+      const taxRate = settings?.defaultTaxRate || 18;
+      const basePaise = Math.round(amountPaise / (1 + taxRate / 100));
+      const taxPaise = amountPaise - basePaise;
+      const baseRupees = (basePaise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+      const taxRupees = (taxPaise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+      const paidDate = payment.paidAt ? new Date(payment.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : new Date(payment.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+      const gymName = settings?.gymName || 'Fitness Villa';
+      const gymPhone = settings?.phone || '+91 98765 43210';
+      const gymAddress = settings?.address || 'Plot 42, Elite Sports Hub, New Delhi';
+      const gstin = settings?.gstin || '07AAAAA0000A1Z5';
+
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Payment Receipt - ${payment.receiptNumber || 'Receipt'}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0c100e; color: #e5eae3; padding: 40px 20px; }
+    .receipt-container { max-width: 650px; margin: 0 auto; background: #141a17; border: 1px solid #28332c; border-radius: 12px; padding: 36px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #b5f23d; padding-bottom: 24px; margin-bottom: 28px; }
+    .gym-brand h1 { font-size: 26px; font-weight: 800; letter-spacing: 1px; color: #ffffff; text-transform: uppercase; }
+    .gym-brand h1 span { color: #b5f23d; }
+    .gym-meta { font-size: 12px; color: #8e968c; line-height: 1.6; margin-top: 6px; }
+    .receipt-badge { text-align: right; }
+    .status-stamp { display: inline-block; padding: 4px 12px; background: rgba(181,242,61,0.15); border: 1px solid #b5f23d; color: #b5f23d; font-weight: 800; font-size: 13px; border-radius: 4px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+    .receipt-num { font-size: 13px; font-family: monospace; color: #cfd6cc; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; font-size: 13px; }
+    .info-block h4 { font-size: 11px; text-transform: uppercase; color: #8e968c; letter-spacing: 1px; margin-bottom: 6px; }
+    .info-block p { font-size: 14px; font-weight: 600; color: #ffffff; }
+    .info-block small { color: #9aa298; display: block; margin-top: 3px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 28px; font-size: 13px; }
+    th { text-align: left; padding: 10px 12px; background: #0c100e; color: #8e968c; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid #28332c; }
+    td { padding: 14px 12px; border-bottom: 1px solid #1f2722; color: #e5eae3; }
+    .text-right { text-align: right; }
+    .summary-box { margin-left: auto; width: 280px; margin-bottom: 28px; }
+    .summary-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; color: #8e968c; }
+    .summary-row.total { border-top: 1px solid #28332c; padding-top: 10px; margin-top: 6px; font-size: 18px; font-weight: 800; color: #ffffff; }
+    .summary-row.total span:last-child { color: #b5f23d; }
+    .footer { border-top: 1px dashed #28332c; padding-top: 20px; text-align: center; font-size: 12px; color: #8e968c; line-height: 1.6; }
+    .actions { display: flex; justify-content: center; gap: 14px; margin-top: 24px; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-size: 13px; font-weight: 700; border-radius: 6px; cursor: pointer; text-decoration: none; border: none; }
+    .btn-green { background: #b5f23d; color: #000; }
+    .btn-outline { background: transparent; border: 1px solid #3d4a40; color: #ffffff; }
+    @media print {
+      body { background: #fff; color: #000; padding: 0; }
+      .receipt-container { border: none; box-shadow: none; padding: 0; max-width: 100%; }
+      .actions { display: none !important; }
+      .gym-brand h1 { color: #000; }
+      .gym-brand h1 span { color: #2e7d32; }
+      .status-stamp { background: #e8f5e9; border-color: #2e7d32; color: #2e7d32; }
+      th { background: #f5f5f5; color: #333; }
+      td { border-bottom: 1px solid #ddd; color: #111; }
+      .info-block p, .summary-row.total { color: #000; }
+      .summary-row.total span:last-child { color: #2e7d32; }
+      .receipt-num, .info-block small, .summary-row, .footer { color: #555; }
+    }
+  </style>
+</head>
+<body>
+  <div class="receipt-container">
+    <div class="header">
+      <div class="gym-brand">
+        <h1>${gymName.split(' ')[0]} <span>${gymName.split(' ').slice(1).join(' ') || 'GYM'}</span></h1>
+        <div class="gym-meta">
+          ${gymAddress}<br>
+          Phone: ${gymPhone} | GSTIN: ${gstin}
+        </div>
+      </div>
+      <div class="receipt-badge">
+        <div class="status-stamp">${payment.status}</div>
+        <div class="receipt-num">${payment.receiptNumber || 'FV-RECEIPT'}</div>
+        <div style="font-size: 11px; color: #8e968c; margin-top: 4px;">Date: ${paidDate}</div>
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-block">
+        <h4>Billed To (Member)</h4>
+        <p>${payment.member?.name || 'Valued Member'}</p>
+        <small>${payment.member?.email || ''} ${payment.member?.phone ? `• ${payment.member.phone}` : ''}</small>
+      </div>
+      <div class="info-block">
+        <h4>Payment Method</h4>
+        <p style="text-transform: capitalize;">${payment.method || 'Online'} Payment</p>
+        <small>Ref: ${payment.providerPaymentId || payment.providerOrderId || 'Verified'}</small>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Duration</th>
+          <th class="text-right">Amount (INR)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <strong>${payment.membership?.plan?.name || 'Gym Membership Pass'}</strong>
+            <div style="font-size: 11px; color: #8e968c; margin-top: 2px;">Full access to Fitness Villa training zones and wellness facilities</div>
+          </td>
+          <td>${payment.membership?.plan?.durationDays ? `${payment.membership.plan.durationDays} Days` : 'Annual / Standard'}</td>
+          <td class="text-right">₹${baseRupees}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="summary-box">
+      <div class="summary-row">
+        <span>Taxable Value:</span>
+        <span>₹${baseRupees}</span>
+      </div>
+      <div class="summary-row">
+        <span>GST (${taxRate}%):</span>
+        <span>₹${taxRupees}</span>
+      </div>
+      <div class="summary-row total">
+        <span>Total Paid:</span>
+        <span>₹${amountInRupees}</span>
+      </div>
+    </div>
+
+    <div class="footer">
+      Thank you for being a proud member of ${gymName}.<br>
+      This is a system-generated electronic receipt. No physical signature required.
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-green" onclick="window.print()">🖨️ Print / Save as PDF</button>
+      <button class="btn btn-outline" onclick="window.close()">Close Window</button>
+    </div>
+  </div>
+</body>
+</html>`;
+      return res.send(html);
+    }
 
     res.json({
       payment,
@@ -274,6 +444,21 @@ router.post(
 
       const settings = await GymSettings.findOne().lean();
       const whatsapp = generatePaymentReceiptWhatsApp(payment, payment.member, settings);
+
+      await AuditLog.create({
+        actor: req.user!.id,
+        actorEmail: req.user!.email,
+        action: 'payment.razorpay_verified',
+        targetModel: 'Payment',
+        targetId: payment.id,
+        after: {
+          member: payment.member?._id || payment.member,
+          amountPaise: payment.amountPaise,
+          providerOrderId: razorpay_order_id,
+          providerPaymentId: razorpay_payment_id,
+          receiptNumber: payment.receiptNumber,
+        },
+      });
 
       res.json({
         message: 'Payment verified',

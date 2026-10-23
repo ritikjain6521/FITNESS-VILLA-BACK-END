@@ -7,6 +7,8 @@ const userSchema = new Schema({
   passwordHash: { type: String, required: true, select: false },
   role: { type: String, enum: ['admin','staff','trainer','member'], default: 'member', index: true },
   active: { type: Boolean, default: true },
+  status: { type: String, enum: ['active', 'suspended', 'blocked'], default: 'active', index: true },
+  statusReason: { type: String, default: '', maxlength: 500 },
   assignedTrainer: { type: Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 export default mongoose.model('User', userSchema);
