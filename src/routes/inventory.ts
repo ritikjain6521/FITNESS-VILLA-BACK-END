@@ -183,14 +183,19 @@ router.post(
 // ─── Stock Inward / Purchases from Suppliers ──────────────
 const purchaseSchema = z.object({
   body: z.object({
-    supplier: z.string().length(24).optional(),
+    supplier: z.string().length(24).optional().nullable(),
+    supplierName: z.string().max(150).optional(),
     invoiceNumber: z.string().max(100).optional(),
     paymentMethod: z.enum(['cash', 'upi', 'bank_transfer', 'card', 'credit', 'other']).default('bank_transfer'),
     notes: z.string().max(300).optional(),
     items: z
       .array(
         z.object({
-          product: z.string().length(24),
+          product: z.string().length(24).optional(),
+          name: z.string().max(150).optional(),
+          category: z.string().max(80).optional(),
+          sku: z.string().max(50).optional(),
+          sellingPricePaise: z.number().int().min(0).optional(),
           qty: z.number().int().min(1),
           unitCostPaise: z.number().int().min(0),
         })
@@ -207,17 +212,97 @@ router.post('/purchases', allowRoles('admin'), validate(purchaseSchema), async (
     const now = new Date();
     const invoice = req.body.invoiceNumber || `PUR-${Date.now().toString().slice(-6)}`;
 
-    for (const line of req.body.items) {
-      const product = await Product.findById(line.product).session(session);
-      if (!product) {
-        await session.abortTransaction();
-        return res.status(404).json({ message: `Product ${line.product} not found` });
-      }
+    // Resolve or auto-register supplier from manual name entry
+    let supplierName = 'Supplier';
+    let supplierId = req.body.supplier || null;
 
-      const before = product.currentQty;
-      product.currentQty += line.qty;
-      product.purchasePricePaise = line.unitCostPaise;
-      await product.save({ session });
+    if (supplierId) {
+      const s = await Supplier.findById(supplierId).session(session);
+      if (s) supplierName = s.name;
+    } else if (req.body.supplierName && req.body.supplierName.trim()) {
+      const nameTrim = req.body.supplierName.trim();
+      const escaped = nameTrim.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      let s = await Supplier.findOne({ name: new RegExp(`^${escaped}$`, 'i') }).session(session);
+      if (!s) {
+        const created = await Supplier.create([{ name: nameTrim }], { session });
+        s = created[0];
+      }
+      supplierName = s.name;
+      supplierId = s._id;
+    }
+
+    for (const line of req.body.items) {
+      let product: any;
+
+      if (line.product) {
+        product = await Product.findById(line.product).session(session);
+        if (!product) {
+          await session.abortTransaction();
+          return res.status(404).json({ message: `Product ${line.product} not found` });
+        }
+        const before = product.currentQty;
+        product.currentQty += line.qty;
+        product.purchasePricePaise = line.unitCostPaise;
+        if (line.sellingPricePaise && line.sellingPricePaise > 0) {
+          product.sellingPricePaise = line.sellingPricePaise;
+        }
+        if (supplierId && !product.supplier) {
+          product.supplier = supplierId;
+        }
+        await product.save({ session });
+      } else if (line.name && line.name.trim()) {
+        const prodName = line.name.trim();
+        const escapedProd = prodName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        let existing = await Product.findOne({ name: new RegExp(`^${escapedProd}$`, 'i') }).session(session);
+
+        if (existing) {
+          product = existing;
+          const before = product.currentQty;
+          product.currentQty += line.qty;
+          product.purchasePricePaise = line.unitCostPaise;
+          if (line.sellingPricePaise && line.sellingPricePaise > 0) {
+            product.sellingPricePaise = line.sellingPricePaise;
+          }
+          if (supplierId && !product.supplier) {
+            product.supplier = supplierId;
+          }
+          await product.save({ session });
+        } else {
+          // Generate a guaranteed unique SKU
+          const cleanPart = prodName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5) || 'PROD';
+          let sku = line.sku?.trim() || `${cleanPart}-${Date.now().toString().slice(-4)}`;
+          let suffix = 1;
+          while (await Product.findOne({ sku }).session(session)) {
+            sku = `${cleanPart}-${Date.now().toString().slice(-4)}-${suffix++}`;
+          }
+
+          const sellingPrice =
+            line.sellingPricePaise && line.sellingPricePaise > 0
+              ? line.sellingPricePaise
+              : Math.max(line.unitCostPaise, Math.round(line.unitCostPaise * 1.3)) || 10000;
+
+          const created = await Product.create(
+            [
+              {
+                sku,
+                name: prodName,
+                category: line.category?.trim() || 'Supplements',
+                currentQty: line.qty,
+                purchasePricePaise: line.unitCostPaise,
+                sellingPricePaise: sellingPrice,
+                reorderThreshold: 5,
+                supplier: supplierId || null,
+                active: true,
+              },
+            ],
+            { session }
+          );
+          product = created[0];
+        }
+      } else {
+        await session.abortTransaction();
+        return res.status(400).json({ message: 'Each item must have either an existing product or a product name' });
+      }
 
       const lineTotal = line.qty * line.unitCostPaise;
       totalPurchaseCostPaise += lineTotal;
@@ -228,11 +313,11 @@ router.post('/purchases', allowRoles('admin'), validate(purchaseSchema), async (
             product: product._id,
             type: 'purchase',
             qtyChange: line.qty,
-            qtyBefore: before,
+            qtyBefore: Math.max(0, product.currentQty - line.qty),
             qtyAfter: product.currentQty,
             unitCostPaise: line.unitCostPaise,
             sourceRef: invoice,
-            reason: `Supplier purchase order ${invoice}`,
+            reason: `Supplier purchase order ${invoice} (${supplierName})`,
             recordedBy: req.user!.id,
             date: now,
           },
@@ -255,12 +340,6 @@ router.post('/purchases', allowRoles('admin'), validate(purchaseSchema), async (
           { session }
         )
       )[0];
-    }
-
-    let supplierName = 'Supplier';
-    if (req.body.supplier) {
-      const s = await Supplier.findById(req.body.supplier).session(session);
-      if (s) supplierName = s.name;
     }
 
     await Expense.create(
@@ -400,7 +479,7 @@ const saleSchema = z.object({
         })
       )
       .min(1),
-    paymentMethod: z.enum(['cash', 'upi', 'bank_transfer', 'card', 'other']).optional(),
+    paymentMethod: z.enum(['cash', 'upi', 'bank_transfer', 'card', 'razorpay', 'other']).optional(),
     discountPaise: z.number().int().min(0).optional(),
     notes: z.string().max(300).optional(),
   }),

@@ -259,7 +259,7 @@ router.get('/:id/receipt', allowRoles('admin', 'staff', 'member'), async (req, r
         <h1>${gymName.split(' ')[0]} <span>${gymName.split(' ').slice(1).join(' ') || 'GYM'}</span></h1>
         <div class="gym-meta">
           ${gymAddress}<br>
-          Phone: ${gymPhone} | GSTIN: ${gstin}
+          Phone: ${gymPhone}
         </div>
       </div>
       <div class="receipt-badge">
@@ -297,19 +297,15 @@ router.get('/:id/receipt', allowRoles('admin', 'staff', 'member'), async (req, r
             <div style="font-size: 11px; color: #8e968c; margin-top: 2px;">Full access to Fitness Villa training zones and wellness facilities</div>
           </td>
           <td>${payment.membership?.plan?.durationDays ? `${payment.membership.plan.durationDays} Days` : 'Annual / Standard'}</td>
-          <td class="text-right">₹${baseRupees}</td>
+          <td class="text-right">₹${amountInRupees}</td>
         </tr>
       </tbody>
     </table>
 
     <div class="summary-box">
       <div class="summary-row">
-        <span>Taxable Value:</span>
-        <span>₹${baseRupees}</span>
-      </div>
-      <div class="summary-row">
-        <span>GST (${taxRate}%):</span>
-        <span>₹${taxRupees}</span>
+        <span>Subtotal:</span>
+        <span>₹${amountInRupees}</span>
       </div>
       <div class="summary-row total">
         <span>Total Paid:</span>
@@ -350,9 +346,10 @@ router.post(
   validate(
     z.object({
       body: z.object({
-        member: z.string().length(24),
+        member: z.string().length(24).optional(),
         amountPaise: z.number().int().min(100).max(100000000),
         membership: z.string().length(24).optional(),
+        notes: z.string().max(300).optional(),
       }),
     })
   ),
@@ -360,10 +357,18 @@ router.post(
     try {
       if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET)
         return res.status(503).json({ message: 'Online payments are not configured' });
-      if (req.user!.role === 'member' && req.user!.id !== req.body.member)
+      if (req.user!.role === 'member' && req.body.member && req.user!.id !== req.body.member)
         return res.status(403).json({ message: 'Cannot create an order for another member' });
-      const member = await User.findOne({ _id: req.body.member, role: 'member' });
-      if (!member) return res.status(404).json({ message: 'Member not found' });
+
+      let targetMemberId = req.body.member || (req.user!.role === 'member' ? req.user!.id : undefined);
+      let member = null;
+      if (targetMemberId) {
+        member = await User.findById(targetMemberId);
+      }
+      if (!member) {
+        member = await User.findById(req.user!.id);
+      }
+      if (!member) return res.status(404).json({ message: 'Member or user not found' });
 
       const razorpay = new Razorpay({
         key_id: process.env.RAZORPAY_KEY_ID,
@@ -387,6 +392,7 @@ router.post(
         method: 'razorpay',
         status: 'pending',
         providerOrderId: order.id,
+        notes: req.body.notes || 'Online Razorpay checkout',
       });
 
       res.status(201).json({

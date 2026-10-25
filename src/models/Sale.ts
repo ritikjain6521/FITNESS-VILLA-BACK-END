@@ -18,7 +18,7 @@ const schema = new Schema({
   taxAmountPaise: { type: Number, default: 0 },
   discountPaise: { type: Number, default: 0 },
   totalPaise: { type: Number, required: true },
-  paymentMethod: { type: String, enum: ['cash', 'upi', 'bank_transfer', 'card', 'other'], default: 'cash' },
+  paymentMethod: { type: String, enum: ['cash', 'upi', 'bank_transfer', 'card', 'razorpay', 'other'], default: 'cash' },
   recordedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   notes: { type: String, maxlength: 300, default: '' },
   isVoid: { type: Boolean, default: false }
