@@ -49,6 +49,16 @@ router.patch('/:id', requireAuth, allowRoles('admin','staff'), async (req, res, 
   } catch(e) { next(e); }
 });
 
+router.delete('/:id', requireAuth, allowRoles('admin', 'staff'), async (req, res, next) => {
+  try {
+    const item = await Enquiry.findByIdAndDelete(req.params.id);
+    if (!item) return res.status(404).json({ message: 'Enquiry not found' });
+    res.json({ message: 'Enquiry deleted successfully' });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // Public: gym info for landing page
 router.get('/gym-info', async (_req, res, next) => {
   try {

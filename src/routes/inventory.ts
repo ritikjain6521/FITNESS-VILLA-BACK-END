@@ -615,4 +615,54 @@ router.get('/sales/:id/receipt', async (req, res, next) => {
   }
 });
 
+// Delete product (soft-delete / deactivate)
+router.delete('/products/:id', allowRoles('admin'), async (req, res, next) => {
+  try {
+    const item = await Product.findByIdAndUpdate(req.params.id, { active: false }, { new: true });
+    if (!item) return res.status(404).json({ message: 'Product not found' });
+    res.json({ message: 'Product deleted successfully', item });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Delete/Void sale and restore stock
+router.delete('/sales/:id', allowRoles('admin'), async (req, res, next) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const sale = await Sale.findById(req.params.id).session(session);
+    if (!sale) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'Sale not found' });
+    }
+    for (const line of sale.items) {
+      if (line.product) {
+        await Product.findByIdAndUpdate(line.product, { $inc: { currentQty: line.qty } }, { session });
+        await StockMovement.create(
+          [
+            {
+              product: line.product,
+              type: 'adjustment',
+              qtyChange: line.qty,
+              qtyAfter: 0,
+              reference: `Sale voided: ${sale.saleNumber}`,
+              recordedBy: req.user!.id,
+            },
+          ],
+          { session }
+        );
+      }
+    }
+    await Sale.findByIdAndDelete(req.params.id).session(session);
+    await session.commitTransaction();
+    res.json({ message: 'Sale deleted and stock restored' });
+  } catch (e) {
+    await session.abortTransaction();
+    next(e);
+  } finally {
+    session.endSession();
+  }
+});
+
 export default router;

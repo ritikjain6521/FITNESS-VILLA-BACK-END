@@ -334,17 +334,31 @@ router.patch('/:id', allowRoles('admin', 'staff'), async (req, res, next) => {
   }
 });
 
-// 8. Admin soft-delete / block member
+// 8. Admin delete / deactivate member
 router.delete('/:id', allowRoles('admin'), async (req, res, next) => {
   try {
     const before = await User.findById(req.params.id).lean();
+    if (!before) return res.status(404).json({ message: 'Member not found' });
+
+    if (req.query.permanent === 'true') {
+      await User.findByIdAndDelete(req.params.id);
+      await Member.findOneAndDelete({ user: req.params.id });
+      await AuditLog.create({
+        actor: req.user!.id,
+        actorEmail: req.user!.email,
+        action: 'member.delete_permanent',
+        targetModel: 'User',
+        targetId: req.params.id,
+        before,
+      });
+      return res.status(200).json({ message: 'Member permanently deleted' });
+    }
+
     const item = await User.findByIdAndUpdate(
       req.params.id,
       { active: false, status: 'blocked', statusReason: 'Deactivated by admin' },
       { new: true }
     ).select('id');
-
-    if (!item) return res.status(404).json({ message: 'Member not found' });
 
     await AuditLog.create({
       actor: req.user!.id,
@@ -353,10 +367,10 @@ router.delete('/:id', allowRoles('admin'), async (req, res, next) => {
       targetModel: 'User',
       targetId: req.params.id,
       before,
-      after: item.toObject(),
+      after: item?.toObject(),
     });
 
-    res.status(204).end();
+    res.status(200).json({ message: 'Member deactivated' });
   } catch (e) {
     next(e);
   }

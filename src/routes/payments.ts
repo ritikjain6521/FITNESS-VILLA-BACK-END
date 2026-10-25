@@ -477,4 +477,23 @@ router.post(
   }
 );
 
+// 7. Delete payment record
+router.delete('/:id', allowRoles('admin'), async (req, res, next) => {
+  try {
+    const item = await Payment.findByIdAndDelete(req.params.id);
+    if (!item) return res.status(404).json({ message: 'Payment record not found' });
+    await AuditLog.create({
+      actor: req.user!.id,
+      actorEmail: req.user!.email,
+      action: 'payment.delete',
+      targetModel: 'Payment',
+      targetId: req.params.id,
+      before: item.toObject(),
+    });
+    res.json({ message: 'Payment record deleted successfully' });
+  } catch (e) {
+    next(e);
+  }
+});
+
 export default router;

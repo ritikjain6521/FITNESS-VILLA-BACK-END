@@ -403,4 +403,15 @@ router.patch('/:id/checkout', allowRoles('admin', 'staff'), async (req, res, nex
   }
 });
 
+// 10. Admin: Delete attendance check-in record
+router.delete('/:id', allowRoles('admin'), async (req, res, next) => {
+  try {
+    const item = await Attendance.findByIdAndDelete(req.params.id);
+    if (!item) return res.status(404).json({ message: 'Attendance record not found' });
+    res.json({ message: 'Attendance record deleted successfully' });
+  } catch (e) {
+    next(e);
+  }
+});
+
 export default router;
