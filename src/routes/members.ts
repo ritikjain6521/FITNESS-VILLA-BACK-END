@@ -4,6 +4,11 @@ import { z } from 'zod';
 import User from '../models/User.js';
 import Member from '../models/Member.js';
 import AuditLog from '../models/AuditLog.js';
+import Plan from '../models/Plan.js';
+import Membership from '../models/Membership.js';
+import GymSettings from '../models/GymSettings.js';
+import NotificationLog from '../models/NotificationLog.js';
+import { buildNewMemberWelcomeEmailHtml, sendEmailDirect } from '../services/notificationService.js';
 import { allowRoles, requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 
@@ -15,9 +20,12 @@ const createSchema = z.object({
     name: z.string().trim().min(2).max(100),
     email: z.string().email().max(254),
     phone: z.string().max(25).optional(),
-    password: z.string().min(10).max(128),
+    password: z.string().min(6).max(128),
     role: z.enum(['member', 'trainer', 'staff']).default('member'),
     status: z.enum(['active', 'suspended', 'blocked']).default('active'),
+    planId: z.string().optional(),
+    startDate: z.coerce.date().optional(),
+    sendWelcomeEmail: z.boolean().optional().default(true),
   }),
 });
 
@@ -63,15 +71,21 @@ router.get('/', allowRoles('admin', 'staff', 'trainer'), async (req, res, next) 
 // 2. Create member / user account
 router.post('/', allowRoles('admin', 'staff'), validate(createSchema), async (req, res, next) => {
   try {
-    const { name, email, phone, password, role, status } = req.body;
+    const { name, email, phone, password, role, status, planId, startDate, sendWelcomeEmail } = req.body;
     if (role === 'staff' && req.user!.role !== 'admin') {
       return res.status(403).json({ message: 'Only admins can create staff accounts' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(409).json({ message: 'इस ईमेल के साथ सदस्य पहले से पंजीकृत है (Email already registered)' });
     }
 
     const isActive = status ? status === 'active' : true;
     const user = await User.create({
       name,
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       phone,
       role,
       status: status || 'active',
@@ -79,14 +93,112 @@ router.post('/', allowRoles('admin', 'staff'), validate(createSchema), async (re
       passwordHash: await bcrypt.hash(password, 12),
     });
 
+    if (role === 'member') {
+      await Member.create({ user: user.id }).catch(() => {});
+    }
+
+    let planDoc: any = null;
+    let membershipDoc: any = null;
+    let expiryDateStr = '—';
+
+    if (planId) {
+      planDoc = await Plan.findOne({ _id: planId, active: true });
+      if (planDoc) {
+        const start = startDate ? new Date(startDate) : new Date();
+        const end = new Date(start);
+        end.setDate(end.getDate() + (planDoc.durationDays || 30));
+        membershipDoc = await Membership.create({
+          member: user.id,
+          plan: planDoc.id,
+          startDate: start,
+          endDate: end,
+          status: 'active',
+          createdBy: req.user!.id,
+        });
+        expiryDateStr = end.toLocaleDateString('hi-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
+      }
+    }
+
     await AuditLog.create({
       actor: req.user!.id,
       actorEmail: req.user!.email,
       action: 'member.create',
       targetModel: 'User',
       targetId: user.id,
-      after: { name: user.name, email: user.email, role: user.role, status: user.status },
+      after: {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        plan: planDoc?.name,
+      },
     });
+
+    let emailSent = false;
+    let emailError: string | null = null;
+
+    if (sendWelcomeEmail !== false && user.email) {
+      try {
+        const settings = await GymSettings.findOne();
+        const gymName = settings?.gymName || 'Fitness Villa';
+        const gymPhone = settings?.phone || '+91 98765 43210';
+        const clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',')[0].trim() : 'https://fitness-villa-front-end.vercel.app';
+        const portalUrl = `${clientUrl}/login`;
+
+        const planName = planDoc ? planDoc.name : 'मानक सदस्यता (Standard Access)';
+        const statusText = user.status === 'active' ? 'सक्रिय (Active)' : user.status;
+
+        const emailHtml = buildNewMemberWelcomeEmailHtml({
+          gymName,
+          gymPhone,
+          portalUrl,
+          memberName: user.name,
+          email: user.email,
+          password, // Member plain password as requested
+          planName,
+          expiryDate: expiryDateStr,
+          status: statusText,
+        });
+
+        const emailSubject = `🎉 ${gymName} में आपका स्वागत है - सदस्यता एवं लॉगिन विवरण`;
+
+        await sendEmailDirect({
+          to: user.email,
+          subject: emailSubject,
+          html: emailHtml,
+        });
+
+        emailSent = true;
+
+        await NotificationLog.create({
+          member: user.id,
+          templateKey: 'member_welcome',
+          channel: 'email',
+          recipient: user.email,
+          body: `सदस्य स्वागत ईमेल सफलतापूर्वक भेजा गया (योजना: ${planName}, समाप्ति: ${expiryDateStr}, पासवर्ड भेजा गया)`,
+          status: 'sent',
+          sentAt: new Date(),
+          triggeredBy: req.user!.id,
+        }).catch(() => {});
+      } catch (err: any) {
+        console.error('Welcome email delivery error:', err);
+        emailError = err?.message || 'Email delivery failed';
+        await NotificationLog.create({
+          member: user.id,
+          templateKey: 'member_welcome',
+          channel: 'email',
+          recipient: user.email,
+          body: `स्वागत ईमेल भेजने में त्रुटि: ${emailError}`,
+          status: 'failed',
+          errorDetails: emailError,
+          triggeredBy: req.user!.id,
+        }).catch(() => {});
+      }
+    }
 
     res.status(201).json({
       item: {
@@ -98,6 +210,12 @@ router.post('/', allowRoles('admin', 'staff'), validate(createSchema), async (re
         role: user.role,
         status: user.status,
       },
+      membership: membershipDoc,
+      emailSent,
+      emailError,
+      message: emailSent
+        ? `सदस्य सफलतापूर्वक जोड़ दिया गया और ${user.email} पर लॉगिन पासवर्ड व सदस्यता विवरण भेज दिया गया!`
+        : 'सदस्य सफलतापूर्वक जोड़ दिया गया',
     });
   } catch (e) {
     next(e);

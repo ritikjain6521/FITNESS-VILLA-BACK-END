@@ -10,6 +10,163 @@ import Sale from '../models/Sale.js';
 import User from '../models/User.js';
 
 // Responsive Luxury HTML Email Builder in Hindi
+export function buildNewMemberWelcomeEmailHtml({
+  gymName,
+  gymPhone,
+  portalUrl,
+  memberName,
+  email,
+  password,
+  planName,
+  expiryDate,
+  status = 'सक्रिय (Active)',
+}: {
+  gymName: string;
+  gymPhone: string;
+  portalUrl?: string;
+  memberName: string;
+  email: string;
+  password?: string;
+  planName?: string;
+  expiryDate?: string;
+  status?: string;
+}) {
+  const loginUrl = portalUrl || 'https://fitness-villa-front-end.vercel.app/login';
+  return `
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>फिटनेस विला में आपका स्वागत है</title>
+</head>
+<body style="margin:0;padding:0;background-color:#070908;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#f3f4f6;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#070908;padding:30px 15px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width:580px;background:#101512;border:1px solid #233125;border-radius:14px;overflow:hidden;box-shadow:0 15px 35px rgba(0,0,0,0.7);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="padding:28px 24px 20px;text-align:center;background:linear-gradient(180deg,#19231c 0%,#101512 100%);border-bottom:1px solid #233125;">
+              <div style="display:inline-block;padding:6px 14px;background:#1a271c;border:1px solid #b5f23d;border-radius:30px;color:#b5f23d;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">
+                🎉 स्वागतम् · WELCOME TO FITNESS VILLA
+              </div>
+              <h1 style="margin:0;font-size:24px;font-weight:800;color:#ffffff;letter-spacing:0.5px;">${gymName}</h1>
+              <p style="margin:6px 0 0;font-size:13px;color:#9ca3af;">आपकी फिटनेस यात्रा की शुरुआत के लिए बहुत-बहुत बधाई!</p>
+            </td>
+          </tr>
+
+          <!-- Welcome Badge -->
+          <tr>
+            <td style="padding:24px 24px 10px;text-align:center;">
+              <span style="display:inline-block;padding:8px 18px;border-radius:8px;background:rgba(181,242,61,0.15);border:1px solid #b5f23d;color:#b5f23d;font-size:14px;font-weight:700;">
+                ✅ सदस्यता पंजीकरण सफल (Registration Successful)
+              </span>
+            </td>
+          </tr>
+
+          <!-- Content Body -->
+          <tr>
+            <td style="padding:15px 28px 25px;">
+              <p style="font-size:16px;color:#f3f4f6;margin:0 0 16px;">
+                नमस्ते <strong style="color:#b5f23d;">${memberName}</strong> जी 🙏,
+              </p>
+              <p style="font-size:14px;line-height:1.6;color:#d1d5db;margin:0 0 20px;">
+                <strong style="color:#ffffff;">${gymName}</strong> परिवार में आपका हार्दिक स्वागत है! आपका नया सदस्य खाता और सदस्यता प्लान सफलतापूर्वक सक्रिय कर दिया गया है। आपका संपूर्ण विवरण नीचे दिया गया है:
+              </p>
+
+              <!-- Membership Details Table -->
+              <table role="presentation" width="100%" style="background:#090d0a;border:1px solid #1f2a21;border-radius:10px;margin-bottom:22px;border-collapse:collapse;">
+                <tr>
+                  <td style="padding:12px 16px;border-bottom:1px solid #1a241c;color:#9ca3af;font-size:13px;">सदस्य का नाम (Member Name)</td>
+                  <td style="padding:12px 16px;border-bottom:1px solid #1a241c;color:#ffffff;font-size:14px;font-weight:700;text-align:right;">${memberName}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;border-bottom:1px solid #1a241c;color:#9ca3af;font-size:13px;">सदस्यता प्लान (Plan)</td>
+                  <td style="padding:12px 16px;border-bottom:1px solid #1a241c;color:#b5f23d;font-size:14px;font-weight:700;text-align:right;">${planName || 'मानक सदस्यता (Standard Access)'}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;border-bottom:1px solid #1a241c;color:#9ca3af;font-size:13px;">समाप्ति तिथि (Expiry Date)</td>
+                  <td style="padding:12px 16px;border-bottom:1px solid #1a241c;color:#ffffff;font-size:14px;font-weight:700;text-align:right;">${expiryDate || '—'}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;color:#9ca3af;font-size:13px;">वर्तमान स्थिति (Status)</td>
+                  <td style="padding:12px 16px;color:#b5f23d;font-size:14px;font-weight:700;text-align:right;">${status}</td>
+                </tr>
+              </table>
+
+              <!-- Member Login Credentials Box -->
+              ${password ? `
+              <div style="background:#131c15;border:1px solid #2e4726;border-radius:10px;padding:20px;margin-bottom:22px;">
+                <h3 style="margin:0 0 12px;font-size:15px;color:#b5f23d;display:flex;align-items:center;gap:8px;">
+                  🔐 आपका सदस्य पोर्टल लॉगिन विवरण (Login Credentials)
+                </h3>
+                <p style="margin:0 0 12px;font-size:13px;color:#9ca3af;">
+                  आप अपने मोबाइल या कंप्यूटर से फिटनेस विला पोर्टल में लॉगिन करके अपनी उपस्थिति, वर्कआउट और सदस्यता देख सकते हैं:
+                </p>
+                <table role="presentation" width="100%" style="border-collapse:collapse;">
+                  <tr>
+                    <td style="padding:6px 0;color:#9ca3af;font-size:13px;width:130px;">लॉगिन पोर्टल URL:</td>
+                    <td style="padding:6px 0;"><a href="${loginUrl}" style="color:#b5f23d;font-weight:600;text-decoration:none;">${loginUrl}</a></td>
+                  </tr>
+                  <tr>
+                    <td style="padding:6px 0;color:#9ca3af;font-size:13px;">लॉगिन ईमेल (ID):</td>
+                    <td style="padding:6px 0;color:#ffffff;font-family:monospace;font-size:14px;font-weight:700;">${email}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:6px 0;color:#9ca3af;font-size:13px;">पासवर्ड (Password):</td>
+                    <td style="padding:6px 0;color:#b5f23d;font-family:monospace;font-size:15px;font-weight:800;letter-spacing:1px;background:#090d0a;display:inline-block;padding:2px 8px;border-radius:4px;border:1px solid #233125;">${password}</td>
+                  </tr>
+                </table>
+                <div style="margin-top:12px;font-size:12px;color:#f59e0b;background:rgba(245,158,11,0.1);padding:8px 12px;border-radius:6px;border-left:3px solid #f59e0b;">
+                  🔒 सुरक्षा सूचना: अपने खाते की सुरक्षा के लिए कृपया पहले लॉगिन के बाद अपना पासवर्ड अवश्य बदल लें।
+                </div>
+              </div>
+              ` : ''}
+
+              <!-- Call to Action Button -->
+              <div style="text-align:center;margin:24px 0;">
+                <a href="${loginUrl}" style="display:inline-block;background:#b5f23d;color:#090c0a;font-weight:800;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none;letter-spacing:0.5px;text-transform:uppercase;">
+                  पोर्टल में लॉगिन करें (Member Login) →
+                </a>
+              </div>
+
+              <!-- Contact & Help -->
+              <p style="font-size:13px;color:#9ca3af;margin:0 0 6px;">
+                📞 किसी भी जानकारी या सहायता के लिए हमारे हेल्पलाइन नंबर पर संपर्क करें:
+              </p>
+              <p style="font-size:16px;font-weight:700;color:#b5f23d;margin:0 0 20px;">
+                ${gymPhone || 'जिम रिसेप्शन'}
+              </p>
+
+              <hr style="border:none;border-top:1px solid #233125;margin:24px 0 16px;">
+              <p style="font-size:13px;color:#6b7280;text-align:center;margin:0;">
+                आपकी सेहत और फिटनेस ही हमारा संकल्प है! 💪🔥<br>
+                <strong>टीम ${gymName}</strong>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:14px 20px;text-align:center;background:#060807;border-top:1px solid #1f2a21;">
+              <p style="margin:0;font-size:11px;color:#6b7280;">
+                यह एक आधिकारिक स्वागत ईमेल है। यदि आपने यह खाता नहीं बनाया है तो तुरंत जिम रिसेप्शन पर संपर्क करें।
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+// Responsive Luxury HTML Email Builder in Hindi
 export function buildHindiEmailTemplate({
   gymName,
   gymPhone,
