@@ -73,7 +73,11 @@ router.get('/dues', allowRoles('admin', 'staff', 'member'), async (req, res, nex
 
       if (duePaise > 0) {
         const dueRupees = (duePaise / 100).toLocaleString('en-IN');
-        const reminderText = `Hi ${member.name}! 💳\nGreetings from *${gymName}*.\nThis is a friendly reminder that you have a pending membership balance of *₹${dueRupees}* for your ${plan.name} plan.\nPlease clear your dues at the reception or pay online at your earliest convenience.\nContact: ${gymPhone}`;
+        const totalPlanRupees = (planPricePaise / 100).toLocaleString('en-IN');
+        const paidRupees = (paidPaise / 100).toLocaleString('en-IN');
+        const expiryStr = m.endDate ? new Date(m.endDate).toLocaleDateString('hi-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+        const reminderText = `नमस्ते ${member.name} जी! 💳\n*${gymName}* - बकाया शुल्क स्मरण सूचना:\n━━━━━━━━━━━━━━━━━━━━\n👤 *सदस्य:* ${member.name}\n🏋️ *प्लान:* ${plan.name}\n💰 *कुल प्लान शुल्क:* ₹${totalPlanRupees}\n✅ *अब तक जमा:* ₹${paidRupees}\n🛑 *बकाया राशि (Pending Due): ₹${dueRupees}*\n📅 *समाप्ति तिथि:* ${expiryStr}\n━━━━━━━━━━━━━━━━━━━━\nअबाध जिम प्रवेश व वर्कआउट जारी रखने के लिए कृपया जल्द से जल्द जिम रिसेप्शन पर या ऑनलाइन अपनी बकाया राशि जमा करवाएं। 💪🔥\n📞 सहायता सूत्र: ${gymPhone}\nधन्यवाद! - ${gymName}`;
 
         dues.push({
           membershipId: m._id,
