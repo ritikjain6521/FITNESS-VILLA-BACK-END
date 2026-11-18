@@ -146,8 +146,7 @@ router.post('/', allowRoles('admin', 'staff'), validate(createSchema), async (re
         const settings = await GymSettings.findOne();
         const gymName = settings?.gymName || 'Fitness Villa';
         const gymPhone = settings?.phone || '+91 98765 43210';
-        const clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',')[0].trim() : 'https://fitness-villa-front-end.vercel.app';
-        const portalUrl = `${clientUrl}/login`;
+        const portalUrl = 'https://fitness-villa-front-end.vercel.app/login';
 
         const planName = planDoc ? planDoc.name : 'मानक सदस्यता (Standard Access)';
         const statusText = user.status === 'active' ? 'सक्रिय (Active)' : user.status;

@@ -31,7 +31,10 @@ export function buildNewMemberWelcomeEmailHtml({
   expiryDate?: string;
   status?: string;
 }) {
-  const loginUrl = portalUrl || 'https://fitness-villa-front-end.vercel.app/login';
+  const rawLoginUrl = portalUrl || 'https://fitness-villa-front-end.vercel.app/login';
+  const loginUrl = rawLoginUrl.includes('localhost')
+    ? 'https://fitness-villa-front-end.vercel.app/login'
+    : rawLoginUrl;
   return `
 <!DOCTYPE html>
 <html lang="hi">
