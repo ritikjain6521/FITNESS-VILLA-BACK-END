@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import dns from 'dns';
+try { dns.setDefaultResultOrder('ipv4first'); } catch {}
 import mongoose from 'mongoose';
 import app from './app.js';
 import { initCronJobs } from './services/cronService.js';

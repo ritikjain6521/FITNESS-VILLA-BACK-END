@@ -1,3 +1,5 @@
+import dns from 'dns';
+try { dns.setDefaultResultOrder('ipv4first'); } catch {}
 import nodemailer from 'nodemailer';
 import GymSettings from '../models/GymSettings.js';
 import NotificationTemplate from '../models/NotificationTemplate.js';
@@ -203,42 +205,55 @@ export function formatWhatsAppUrl(phone: string, text: string): string {
 }
 
 // Nodemailer Transporter with Live SMTP support & Gmail App Password detection
-export async function createNodemailerTransporter() {
+export async function createNodemailerTransporter(overrides?: {
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPass?: string;
+}) {
   const settings = await GymSettings.findOne();
 
-  // 1. Check process.env SMTP config
+  // 1. Check overrides from test/direct request
+  const oHost = overrides?.smtpHost;
+  const oPort = overrides?.smtpPort;
+  const oUser = overrides?.smtpUser;
+  const oPass = overrides?.smtpPass;
+
+  // 2. Check process.env SMTP config
   const envHost = process.env.SMTP_HOST;
-  const envPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
+  const envPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const envUser = process.env.SMTP_USER;
   const envPass = process.env.SMTP_PASS;
 
-  // 2. Check GymSettings in MongoDB
+  // 3. Check GymSettings in MongoDB
   const dbHost = settings?.smtpHost;
-  const dbPort = settings?.smtpPort || 587;
+  const dbPort = settings?.smtpPort;
   const dbUser = settings?.smtpUser;
   const dbPass = (settings as any)?.smtpPass;
 
-  const host = envHost || dbHost || '';
-  const port = envHost ? envPort : dbPort;
-  const user = envUser || dbUser || '';
-  const pass = envPass || dbPass || '';
+  const host = (oHost || envHost || dbHost || '').trim();
+  const rawPort = oPort || envPort || dbPort;
+  const user = (oUser || envUser || dbUser || '').trim();
+  const rawPass = oPass || envPass || dbPass || '';
+  const cleanPass = rawPass.replace(/\s+/g, '');
 
-  if (host && user && pass) {
+  if (host && user && cleanPass) {
     const isGmail = host.toLowerCase().includes('gmail') || user.toLowerCase().includes('@gmail.com');
-    const transporter = isGmail
-      ? nodemailer.createTransport({
-          service: 'gmail',
-          auth: { user, pass },
-        })
-      : nodemailer.createTransport({
-          host,
-          port,
-          secure: port === 465,
-          auth: { user, pass },
-          tls: {
-            rejectUnauthorized: false,
-          },
-        });
+    const port = isGmail ? 465 : (rawPort ? Number(rawPort) : 465);
+    const secure = port === 465;
+
+    const transporter = nodemailer.createTransport({
+      host: isGmail ? 'smtp.gmail.com' : host,
+      port,
+      secure,
+      auth: { user, pass: cleanPass },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+      tls: {
+        rejectUnauthorized: false,
+      },
+    });
 
     return {
       transporter,
@@ -302,9 +317,18 @@ export async function sendEmailDirect({
 }
 
 // Test SMTP connection and dispatch verification email
-export async function testSmtpConnection(targetEmail: string) {
+export async function testSmtpConnection(
+  targetEmail: string,
+  overrides?: {
+    smtpHost?: string;
+    smtpPort?: number;
+    smtpUser?: string;
+    smtpPass?: string;
+    smtpFrom?: string;
+  }
+) {
   const settings = await GymSettings.findOne();
-  const transporterObj = await createNodemailerTransporter();
+  const transporterObj = await createNodemailerTransporter(overrides);
 
   if (!transporterObj.isLive) {
     throw new Error('SMTP सेटिंग्स कॉन्फ़िगर नहीं हैं! कृपया Settings पेज या server/.env में SMTP Host, User और App Password दर्ज करें।');
@@ -329,7 +353,7 @@ export async function testSmtpConnection(targetEmail: string) {
     callToActionText: 'आपकी ईमेल प्रणाली सही ढंग से कार्य कर रही है। अब सदस्यों को स्वतः एवं मैनुअल ईमेल सीधे उनके इनबॉक्स में प्राप्त होंगे।',
   });
 
-  const from = process.env.SMTP_FROM || settings?.smtpFrom || transporterObj.senderUser || 'noreply@fitnessvilla.in';
+  const from = overrides?.smtpFrom || process.env.SMTP_FROM || settings?.smtpFrom || transporterObj.senderUser || 'noreply@fitnessvilla.in';
   const info = await transporterObj.transporter.sendMail({
     from: `"${gymName}" <${from}>`,
     to: targetEmail,
