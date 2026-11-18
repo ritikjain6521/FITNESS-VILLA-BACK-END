@@ -7,51 +7,186 @@ import Payment from '../models/Payment.js';
 import Sale from '../models/Sale.js';
 import User from '../models/User.js';
 
-// Default templates seed if not present
-const DEFAULT_TEMPLATES = [
+// Responsive Luxury HTML Email Builder in Hindi
+export function buildHindiEmailTemplate({
+  gymName,
+  gymPhone,
+  title,
+  subtitle,
+  badgeText,
+  badgeColor = '#ef4444',
+  memberName,
+  planName,
+  expiryDate,
+  daysLeftText,
+  statusText,
+  callToActionText = 'जिम काउंटर पर संपर्क करें या ऑनलाइन नवीनीकरण कराएं',
+}: {
+  gymName: string;
+  gymPhone: string;
+  title: string;
+  subtitle: string;
+  badgeText: string;
+  badgeColor?: string;
+  memberName: string;
+  planName: string;
+  expiryDate: string;
+  daysLeftText: string;
+  statusText: string;
+  callToActionText?: string;
+}) {
+  return `
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#070908;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#f3f4f6;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#070908;padding:30px 15px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width:580px;background:#101512;border:1px solid #233125;border-radius:14px;overflow:hidden;box-shadow:0 15px 35px rgba(0,0,0,0.7);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="padding:28px 24px 20px;text-align:center;background:linear-gradient(180deg,#19231c 0%,#101512 100%);border-bottom:1px solid #233125;">
+              <div style="display:inline-block;padding:6px 14px;background:#1a271c;border:1px solid #b5f23d;border-radius:30px;color:#b5f23d;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">
+                🏋️ FITNESS VILLA GYM
+              </div>
+              <h1 style="margin:0;font-size:24px;font-weight:800;color:#ffffff;letter-spacing:0.5px;">${gymName}</h1>
+              <p style="margin:6px 0 0;font-size:13px;color:#9ca3af;">${subtitle}</p>
+            </td>
+          </tr>
+
+          <!-- Alert Badge -->
+          <tr>
+            <td style="padding:24px 24px 10px;text-align:center;">
+              <span style="display:inline-block;padding:8px 18px;border-radius:8px;background:${badgeColor}22;border:1px solid ${badgeColor};color:${badgeColor};font-size:14px;font-weight:700;">
+                ${badgeText}
+              </span>
+            </td>
+          </tr>
+
+          <!-- Content Body -->
+          <tr>
+            <td style="padding:15px 28px 25px;">
+              <p style="font-size:16px;color:#f3f4f6;margin:0 0 16px;">
+                नमस्ते <strong style="color:#b5f23d;">${memberName}</strong> जी 🙏,
+              </p>
+              <p style="font-size:14px;line-height:1.6;color:#d1d5db;margin:0 0 20px;">
+                यह आवश्यक सूचना आपको सूचित करने के लिए भेजी जा रही है कि <strong style="color:#ffffff;">${gymName}</strong> में आपकी जिम सदस्यता का विवरण निम्नलिखित है:
+              </p>
+
+              <!-- Details Box -->
+              <table role="presentation" width="100%" style="background:#090d0a;border:1px solid #1f2a21;border-radius:10px;margin-bottom:22px;border-collapse:collapse;">
+                <tr>
+                  <td style="padding:12px 16px;border-bottom:1px solid #1a241c;color:#9ca3af;font-size:13px;">सदस्य का नाम (Member Name)</td>
+                  <td style="padding:12px 16px;border-bottom:1px solid #1a241c;color:#ffffff;font-size:14px;font-weight:600;text-align:right;">${memberName}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;border-bottom:1px solid #1a241c;color:#9ca3af;font-size:13px;">सदस्यता प्लान (Plan)</td>
+                  <td style="padding:12px 16px;border-bottom:1px solid #1a241c;color:#b5f23d;font-size:14px;font-weight:700;text-align:right;">${planName}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;border-bottom:1px solid #1a241c;color:#9ca3af;font-size:13px;">समाप्ति तिथि (Expiry Date)</td>
+                  <td style="padding:12px 16px;border-bottom:1px solid #1a241c;color:#ffffff;font-size:14px;font-weight:600;text-align:right;">${expiryDate}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;color:#9ca3af;font-size:13px;">वर्तमान स्थिति (Status)</td>
+                  <td style="padding:12px 16px;color:${badgeColor};font-size:14px;font-weight:700;text-align:right;">${statusText} (${daysLeftText})</td>
+                </tr>
+              </table>
+
+              <!-- Action Call -->
+              <div style="background:#152217;border-left:4px solid #b5f23d;padding:14px 18px;border-radius:4px;margin-bottom:24px;">
+                <p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">
+                  👉 <strong>कार्रवाई करें:</strong> ${callToActionText}। समय पर नवीनीकरण कराने से आपकी ट्रेनिंग और फिटनेस में कोई रुकावट नहीं आएगी।
+                </p>
+              </div>
+
+              <!-- Contact & Help -->
+              <p style="font-size:13px;color:#9ca3af;margin:0 0 6px;">
+                📞 किसी भी जानकारी या सहायता के लिए हमारे हेल्पलाइन नंबर पर संपर्क करें:
+              </p>
+              <p style="font-size:16px;font-weight:700;color:#b5f23d;margin:0 0 20px;">
+                ${gymPhone || 'जिम रिसेप्शन'}
+              </p>
+
+              <hr style="border:none;border-top:1px solid #233125;margin:24px 0 16px;">
+              <p style="font-size:13px;color:#6b7280;text-align:center;margin:0;">
+                आपकी सेहत और फिटनेस ही हमारा संकल्प है! 💪🔥<br>
+                <strong>टीम ${gymName}</strong>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:14px 20px;text-align:center;background:#060807;border-top:1px solid #1f2a21;">
+              <p style="margin:0;font-size:11px;color:#6b7280;">
+                यह एक स्वचालित संदेश है। कृपया सदस्यता नवीनीकरण के लिए सीधे जिम रिसेप्शन पर पधारें।
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
+// 100% Hindi Default Templates
+export const DEFAULT_TEMPLATES = [
   {
     key: 'renewal_7d',
-    label: 'Membership Expiring in 7 Days',
-    whatsappBody: 'Hi {memberName}! 💪\nYour membership for {planName} at {gymName} will expire in {daysLeft} days (on {expiryDate}). Renew today to keep your streak going! 🔥\nContact: {gymPhone}',
-    emailSubject: 'Reminder: Your {gymName} membership expires in 7 days',
-    emailBody: '<p>Hi <strong>{memberName}</strong>,</p><p>Your membership for <strong>{planName}</strong> at <strong>{gymName}</strong> will expire in 7 days on <strong>{expiryDate}</strong>.</p><p>Please renew your membership at the front desk or contact us at {gymPhone}.</p><p>Keep pushing! 💪</p>',
+    label: 'सदस्यता समाप्ति सूचना (7 दिन शेष)',
+    whatsappBody: 'नमस्ते {memberName} जी! 💪\n{gymName} में आपकी {planName} सदस्यता समाप्त होने में {daysLeft} दिन शेष हैं (समाप्ति तिथि: {expiryDate})।\nअपनी फिटनेस यात्रा को बिना रुकावट जारी रखने के लिए कृपया समय रहते सदस्यता का नवीनीकरण (Renew) करवाएं। 🔥\nजिम संपर्क सूत्र: {gymPhone}\nधन्यवाद! - {gymName}',
+    emailSubject: 'स्मरण पत्र: {gymName} में आपकी जिम सदस्यता {daysLeft} दिन में समाप्त हो रही है',
+    emailBody: '<div style="font-family:Arial,sans-serif;background:#0d120f;color:#fff;padding:24px;border-radius:10px;border:1px solid #2b3b2d;max-width:540px;"><h2 style="color:#b5f23d;margin-top:0;">{gymName}</h2><p>नमस्ते <strong>{memberName}</strong> जी,</p><p>आपकी <strong>{planName}</strong> सदस्यता 7 दिनों बाद (दिनांक: <strong>{expiryDate}</strong>) समाप्त होने वाली है।</p><p>अपनी दैनिक फिटनेस ट्रेनिंग जारी रखने के लिए कृपया समय पर जिम रिसेप्शन पर संपर्क कर नवीनीकरण करवाएं।</p><p style="color:#b5f23d;font-weight:bold;">हेल्पलाइन: {gymPhone}</p><p>धन्यवाद,<br/>टीम {gymName}</p></div>',
   },
   {
     key: 'renewal_3d',
-    label: 'Membership Expiring in 3 Days',
-    whatsappBody: 'Hi {memberName}! ⚠️\nOnly {daysLeft} days left on your {planName} membership at {gymName} (Expires {expiryDate}). Renew now to maintain uninterrupted gym access! 🏋️\nContact: {gymPhone}',
-    emailSubject: 'Urgent: Your {gymName} membership expires in 3 days!',
-    emailBody: '<p>Hi <strong>{memberName}</strong>,</p><p>This is a quick reminder that only 3 days remain on your <strong>{planName}</strong> membership at <strong>{gymName}</strong> (expires {expiryDate}).</p><p>Renew now at the reception to avoid gym access suspension.</p><p>Best regards,<br/>{gymName} Team</p>',
+    label: 'अति आवश्यक: सदस्यता समाप्ति सूचना (3 दिन शेष)',
+    whatsappBody: 'नमस्ते {memberName} जी! ⚠️\n{gymName} में आपकी {planName} सदस्यता समाप्त होने में केवल {daysLeft} दिन शेष हैं (समाप्ति तिथि: {expiryDate})।\nअबाध जिम प्रवेश बनाए रखने के लिए कृपया आज ही रिसेप्शन पर संपर्क कर नवीनीकरण (Renew) करवाएं। 🏋️‍♂️\nजिम संपर्क सूत्र: {gymPhone}\nधन्यवाद! - {gymName}',
+    emailSubject: 'अति आवश्यक: {gymName} में आपकी जिम सदस्यता समाप्त होने में केवल 3 दिन शेष हैं!',
+    emailBody: '<div style="font-family:Arial,sans-serif;background:#0d120f;color:#fff;padding:24px;border-radius:10px;border:1px solid #ff9f43;max-width:540px;"><h2 style="color:#ff9f43;margin-top:0;">{gymName} - अति आवश्यक सूचना</h2><p>नमस्ते <strong>{memberName}</strong> जी,</p><p>आपकी <strong>{planName}</strong> सदस्यता समाप्त होने में केवल <strong>3 दिन</strong> शेष हैं (समाप्ति तिथि: <strong>{expiryDate}</strong>)।</p><p>अबाध प्रवेश बनाए रखने हेतु कृपया तुरंत जिम काउंटर पर संपर्क करके अपनी सदस्यता का नवीनीकरण कराएं।</p><p style="color:#b5f23d;font-weight:bold;">हेल्पलाइन: {gymPhone}</p><p>धन्यवाद,<br/>टीम {gymName}</p></div>',
   },
   {
     key: 'renewal_0d',
-    label: 'Membership Expiring Today / Expired',
-    whatsappBody: 'Hi {memberName}! 🛑\nYour membership for {planName} at {gymName} has expired today ({expiryDate}). Please renew today at the front desk to continue training without pause! 💪\nContact: {gymPhone}',
-    emailSubject: 'Notice: Your {gymName} membership has expired today',
-    emailBody: '<p>Hi <strong>{memberName}</strong>,</p><p>Your <strong>{planName}</strong> membership at <strong>{gymName}</strong> has expired on <strong>{expiryDate}</strong>.</p><p>Please visit the front desk today to renew and continue your training.</p>',
+    label: 'सदस्यता समाप्त / Overdue (आज या पूर्व में समाप्त)',
+    whatsappBody: 'नमस्ते {memberName} जी! 🛑\n{gymName} में आपकी {planName} सदस्यता समाप्त हो चुकी है (समाप्ति तिथि: {expiryDate})।\nअपनी फिटनेस ट्रेनिंग जारी रखने के लिए कृपया आज ही रिसेप्शन पर संपर्क कर अपनी सदस्यता का नवीनीकरण (Renew) करवाएं। 💪\nजिम संपर्क सूत्र: {gymPhone}\nधन्यवाद! - {gymName}',
+    emailSubject: 'महत्वपूर्ण सूचना: {gymName} में आपकी जिम सदस्यता समाप्त हो चुकी है (Renew Now)',
+    emailBody: '<div style="font-family:Arial,sans-serif;background:#0d120f;color:#fff;padding:24px;border-radius:10px;border:1px solid #ff6b6b;max-width:540px;"><h2 style="color:#ff6b6b;margin-top:0;">{gymName} - सदस्यता समाप्ति सूचना</h2><p>नमस्ते <strong>{memberName}</strong> जी,</p><p>आपकी <strong>{planName}</strong> सदस्यता दिनांक <strong>{expiryDate}</strong> को समाप्त हो चुकी है।</p><p>अपनी ट्रेनिंग को बिना किसी रुकावट के जारी रखने के लिए कृपया आज ही जिम काउंटर पर संपर्क कर नवीनीकरण करवाएं।</p><p style="color:#b5f23d;font-weight:bold;">हेल्पलाइन: {gymPhone}</p><p>धन्यवाद,<br/>टीम {gymName}</p></div>',
   },
   {
     key: 'payment_received',
-    label: 'Payment Receipt Confirmation',
-    whatsappBody: '🏋️ *{gymName}* - Payment Receipt\n━━━━━━━━━━━━━━━━━━━━\nReceipt No: *{receiptNumber}*\nMember: {memberName}\nDate: {date}\nPayment Method: {method}\n*Amount Paid: ₹{amount}*\nPlan / Purpose: {purpose}\nStatus: *Confirmed & Paid* ✅\n━━━━━━━━━━━━━━━━━━━━\nThank you for training with us! 💪\nPhone: {gymPhone}',
-    emailSubject: 'Payment Receipt: {receiptNumber} - {gymName}',
-    emailBody: '<div style="font-family:sans-serif;padding:20px;border:1px solid #ddd;border-radius:8px;max-width:500px;"><h2 style="color:#22c55e;">{gymName}</h2><p>Payment Receipt <strong>#{receiptNumber}</strong></p><hr/><p><strong>Member:</strong> {memberName}</p><p><strong>Amount Paid:</strong> ₹{amount}</p><p><strong>Method:</strong> {method}</p><p><strong>Date:</strong> {date}</p><p><strong>Purpose:</strong> {purpose}</p><p style="color:#22c55e;font-weight:bold;">Status: Paid & Verified ✅</p><hr/><p>Thank you for your payment!</p></div>',
+    label: 'भुगतान रसीद (Payment Receipt)',
+    whatsappBody: '🏋️ *{gymName}* - आधिकारिक भुगतान रसीद\n━━━━━━━━━━━━━━━━━━━━\n📄 *रसीद सं:* {receiptNumber}\n👤 *सदस्य:* {memberName}\n📅 *दिनांक:* {date}\n💳 *भुगतान माध्यम:* {method}\n💰 *जमा राशि: ₹{amount}*\n📌 *विवरण:* {purpose}\n✅ *स्थिति: भुगतान सफल ও सत्यापित*\n━━━━━━━━━━━━━━━━━━━━\n{gymName} के साथ जुड़ने के लिए धन्यवाद! ऐसे ही मेहनत करते रहें! 💪\n📞 संपर्क: {gymPhone}',
+    emailSubject: 'भुगतान रसीद: #{receiptNumber} - {gymName}',
+    emailBody: '<div style="font-family:sans-serif;padding:24px;background:#0d120f;color:#fff;border:1px solid #b5f23d;border-radius:10px;max-width:500px;"><h2 style="color:#b5f23d;margin-top:0;">{gymName}</h2><p>आधिकारिक भुगतान रसीद <strong>#{receiptNumber}</strong></p><hr style="border-color:#2b3b2d;"/><p><strong>सदस्य का नाम:</strong> {memberName}</p><p><strong>जमा राशि:</strong> ₹{amount}</p><p><strong>भुगतान माध्यम:</strong> {method}</p><p><strong>दिनांक:</strong> {date}</p><p><strong>विवरण:</strong> {purpose}</p><p style="color:#b5f23d;font-weight:bold;">स्थिति: भुगतान सफल व सत्यापित ✅</p><hr style="border-color:#2b3b2d;"/><p>आपके भुगतान के लिए धन्यवाद!</p></div>',
   },
   {
     key: 'payment_due',
-    label: 'Outstanding Payment Due Reminder',
-    whatsappBody: 'Hi {memberName}! 💳\nFriendly reminder from *{gymName}*: You have an outstanding membership balance of *₹{dueAmount}*. Please clear this due at your earliest convenience.\nContact: {gymPhone}',
-    emailSubject: 'Payment Due Reminder - {gymName}',
-    emailBody: '<p>Hi <strong>{memberName}</strong>,</p><p>This is a polite reminder that you have an outstanding balance of <strong>₹{dueAmount}</strong> for your membership at <strong>{gymName}</strong>.</p><p>Please clear your balance at the gym reception.</p>',
+    label: 'बकाया शुल्क स्मरण (Payment Overdue / Due)',
+    whatsappBody: 'नमस्ते {memberName} जी! 💳\n{gymName} से विनम्र स्मरण: आपकी सदस्यता का बकाया शुल्क ₹{dueAmount} लंबित है।\nकृपया असुविधा से बचने के लिए जल्द से जल्द अपनी बकाया राशि जमा करवाएं।\nजिम संपर्क सूत्र: {gymPhone}\nधन्यवाद! - {gymName}',
+    emailSubject: 'बकाया भुगतान सूचना - {gymName}',
+    emailBody: '<div style="font-family:Arial,sans-serif;background:#0d120f;color:#fff;padding:24px;border-radius:10px;border:1px solid #ffd166;max-width:540px;"><h2 style="color:#ffd166;margin-top:0;">{gymName} - बकाया शुल्क सूचना</h2><p>नमस्ते <strong>{memberName}</strong> जी,</p><p>आपकी सदस्यता का <strong>₹{dueAmount}</strong> बकाया शुल्क लंबित है।</p><p>कृपया असुविधा से बचने के लिए जल्द से जल्द जिम रिसेप्शन पर अपनी बकाया राशि जमा करवाएं।</p><p style="color:#b5f23d;font-weight:bold;">हेल्पलाइन: {gymPhone}</p><p>धन्यवाद,<br/>टीम {gymName}</p></div>',
   }
 ];
 
+// Ensure all default templates in MongoDB are updated to 100% Hindi
 export async function ensureDefaultTemplates() {
   for (const t of DEFAULT_TEMPLATES) {
-    const exists = await NotificationTemplate.findOne({ key: t.key });
-    if (!exists) {
-      await NotificationTemplate.create(t);
-    }
+    await NotificationTemplate.findOneAndUpdate(
+      { key: t.key },
+      { $set: t },
+      { upsert: true, new: true }
+    );
   }
 }
 
@@ -67,25 +202,61 @@ export function formatWhatsAppUrl(phone: string, text: string): string {
   return `https://wa.me/${cPhone}?text=${encodeURIComponent(text)}`;
 }
 
+// Nodemailer Transporter with Live SMTP support & Gmail App Password detection
 export async function createNodemailerTransporter() {
   const settings = await GymSettings.findOne();
-  if (settings?.smtpHost && settings.smtpUser) {
-    return nodemailer.createTransport({
-      host: settings.smtpHost,
-      port: settings.smtpPort || 587,
-      secure: settings.smtpPort === 465,
-      auth: {
-        user: settings.smtpUser,
-        pass: process.env.SMTP_PASS || '',
-      },
-    });
+
+  // 1. Check process.env SMTP config
+  const envHost = process.env.SMTP_HOST;
+  const envPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
+  const envUser = process.env.SMTP_USER;
+  const envPass = process.env.SMTP_PASS;
+
+  // 2. Check GymSettings in MongoDB
+  const dbHost = settings?.smtpHost;
+  const dbPort = settings?.smtpPort || 587;
+  const dbUser = settings?.smtpUser;
+  const dbPass = (settings as any)?.smtpPass;
+
+  const host = envHost || dbHost || '';
+  const port = envHost ? envPort : dbPort;
+  const user = envUser || dbUser || '';
+  const pass = envPass || dbPass || '';
+
+  if (host && user && pass) {
+    const isGmail = host.toLowerCase().includes('gmail') || user.toLowerCase().includes('@gmail.com');
+    const transporter = isGmail
+      ? nodemailer.createTransport({
+          service: 'gmail',
+          auth: { user, pass },
+        })
+      : nodemailer.createTransport({
+          host,
+          port,
+          secure: port === 465,
+          auth: { user, pass },
+          tls: {
+            rejectUnauthorized: false,
+          },
+        });
+
+    return {
+      transporter,
+      isLive: true,
+      senderUser: user,
+    };
   }
-  // Fallback to test/console transport if SMTP not explicitly configured
-  return nodemailer.createTransport({
-    streamTransport: true,
-    newline: 'windows',
-    buffer: true,
-  });
+
+  // Fallback to test/stream transport if no SMTP configured
+  return {
+    transporter: nodemailer.createTransport({
+      streamTransport: true,
+      newline: 'windows',
+      buffer: true,
+    }),
+    isLive: false,
+    senderUser: '',
+  };
 }
 
 function replaceVars(template: string, vars: Record<string, string>): string {
@@ -96,6 +267,7 @@ function replaceVars(template: string, vars: Record<string, string>): string {
   return result;
 }
 
+// Send real email direct
 export async function sendEmailDirect({
   to,
   subject,
@@ -108,16 +280,65 @@ export async function sendEmailDirect({
   text?: string;
 }) {
   const settings = await GymSettings.findOne();
-  const from = settings?.smtpFrom || settings?.email || 'noreply@fitnessvilla.in';
-  const transporter = await createNodemailerTransporter();
-  const info = await transporter.sendMail({
-    from: `"${settings?.gymName || 'Fitness Villa'}" <${from}>`,
+  const transporterObj = await createNodemailerTransporter();
+  const from = process.env.SMTP_FROM || settings?.smtpFrom || transporterObj.senderUser || settings?.email || 'noreply@fitnessvilla.in';
+  const gymName = settings?.gymName || 'Fitness Villa';
+
+  const info = await transporterObj.transporter.sendMail({
+    from: `"${gymName}" <${from}>`,
     to,
     subject,
     html,
     text: text || html.replace(/<[^>]*>/g, ''),
   });
-  return info;
+
+  if (!transporterObj.isLive) {
+    console.warn(`[EMAIL NOTICE] Email to ${to} was prepared in test/stream mode. To send live emails to member inboxes, configure SMTP credentials in Settings > Email (SMTP) or server/.env.`);
+  } else {
+    console.log(`[EMAIL SENT] Live email successfully sent to ${to} (MessageID: ${info.messageId})`);
+  }
+
+  return { info, isLive: transporterObj.isLive };
+}
+
+// Test SMTP connection and dispatch verification email
+export async function testSmtpConnection(targetEmail: string) {
+  const settings = await GymSettings.findOne();
+  const transporterObj = await createNodemailerTransporter();
+
+  if (!transporterObj.isLive) {
+    throw new Error('SMTP सेटिंग्स कॉन्फ़िगर नहीं हैं! कृपया Settings पेज या server/.env में SMTP Host, User और App Password दर्ज करें।');
+  }
+
+  // Verify connection
+  await transporterObj.transporter.verify();
+
+  const gymName = settings?.gymName || 'Fitness Villa';
+  const testHtml = buildHindiEmailTemplate({
+    gymName,
+    gymPhone: settings?.phone || settings?.whatsapp || '9876543210',
+    title: 'परीक्षण ईमेल (SMTP Test Email)',
+    subtitle: 'ईमेल डिलीवरी सत्यापन सफल',
+    badgeText: '✅ टेस्ट ईमेल सफल (Test Email Success)',
+    badgeColor: '#22c55e',
+    memberName: 'व्यवस्थापक (Admin)',
+    planName: 'सिस्टम सत्यापन (System Verification)',
+    expiryDate: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+    daysLeftText: 'सक्रिय (Active)',
+    statusText: 'ईमेल प्रणाली पूरी तरह तैयार है',
+    callToActionText: 'आपकी ईमेल प्रणाली सही ढंग से कार्य कर रही है। अब सदस्यों को स्वतः एवं मैनुअल ईमेल सीधे उनके इनबॉक्स में प्राप्त होंगे।',
+  });
+
+  const from = process.env.SMTP_FROM || settings?.smtpFrom || transporterObj.senderUser || 'noreply@fitnessvilla.in';
+  const info = await transporterObj.transporter.sendMail({
+    from: `"${gymName}" <${from}>`,
+    to: targetEmail,
+    subject: `[परीक्षण ईमेल] ${gymName} - ईमेल डिलीवरी सत्यापन सफल ✅`,
+    html: testHtml,
+    text: `नमस्ते! ${gymName} की ईमेल प्रणाली सफलतापूर्वक जुड़ चुकी है और ठीक से काम कर रही है।`,
+  });
+
+  return { success: true, messageId: info.messageId, recipient: targetEmail };
 }
 
 // Format receipt WhatsApp message and URL
@@ -131,10 +352,10 @@ export function generatePaymentReceiptWhatsApp(
   const receiptNo = payment.receiptNumber || `RCP-${payment._id.toString().slice(-6).toUpperCase()}`;
   const amount = (payment.amountPaise / 100).toLocaleString('en-IN');
   const date = payment.paidAt ? new Date(payment.paidAt).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : new Date().toLocaleDateString('en-IN');
-  const purpose = payment.membership?.plan?.name ? `Membership: ${payment.membership.plan.name}` : (payment.notes || 'Gym Membership / Fees');
+  const purpose = payment.membership?.plan?.name ? `सदस्यता: ${payment.membership.plan.name}` : (payment.notes || 'जिम सदस्यता / शुल्क');
   const method = (payment.method || 'cash').toUpperCase();
 
-  const text = `🏋️ *${gymName}* - Official Payment Receipt\n━━━━━━━━━━━━━━━━━━━━\n📄 *Receipt No:* ${receiptNo}\n👤 *Member:* ${member?.name || 'Valued Member'}\n📅 *Date:* ${date}\n💳 *Method:* ${method}\n💰 *Amount Paid:* ₹${amount}\n📌 *Particulars:* ${purpose}\n✅ *Status:* Paid & Verified\n━━━━━━━━━━━━━━━━━━━━\nThank you for choosing ${gymName}! Keep training hard! 💪\n📞 Contact: ${gymPhone}`;
+  const text = `🏋️ *${gymName}* - आधिकारिक भुगतान रसीद\n━━━━━━━━━━━━━━━━━━━━\n📄 *रसीद सं:* ${receiptNo}\n👤 *सदस्य:* ${member?.name || 'सम्मानित सदस्य'}\n📅 *दिनांक:* ${date}\n💳 *माध्यम:* ${method}\n💰 *जमा राशि:* ₹${amount}\n📌 *विवरण:* ${purpose}\n✅ *स्थिति:* भुगतान सफल व सत्यापित\n━━━━━━━━━━━━━━━━━━━━\n${gymName} को चुनने के लिए धन्यवाद! ऐसे ही मेहनत करते रहें! 💪\n📞 संपर्क: ${gymPhone}`;
 
   return {
     text,
@@ -155,7 +376,7 @@ export function generateSaleReceiptWhatsApp(
   const date = new Date(sale.createdAt || Date.now()).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
   const itemsList = (sale.items || []).map((it: any) => `• ${it.productName} (x${it.qty}) - ₹${(it.totalPaise / 100).toLocaleString('en-IN')}`).join('\n');
 
-  const text = `🛒 *${gymName}* - Store Receipt\n━━━━━━━━━━━━━━━━━━━━\n🧾 *Invoice:* ${saleNo}\n👤 *Customer:* ${member?.name || 'Walk-in Customer'}\n📅 *Date:* ${date}\n💳 *Payment:* ${(sale.paymentMethod || 'cash').toUpperCase()}\n\n*Items Purchased:*\n${itemsList}\n━━━━━━━━━━━━━━━━━━━━\n💵 *Total Amount:* ₹${total}\n✅ *Payment Confirmed*\n━━━━━━━━━━━━━━━━━━━━\nThank you for your purchase! Stay fit! 🔥\n📞 ${gymPhone}`;
+  const text = `🛒 *${gymName}* - स्टोर रसीद\n━━━━━━━━━━━━━━━━━━━━\n🧾 *बिल सं:* ${saleNo}\n👤 *ग्राहक:* ${member?.name || 'ग्राहक'}\n📅 *दिनांक:* ${date}\n💳 *भुगतान:* ${(sale.paymentMethod || 'cash').toUpperCase()}\n\n*खरीदी गई सामग्री:*\n${itemsList}\n━━━━━━━━━━━━━━━━━━━━\n💵 *कुल राशि:* ₹${total}\n✅ *भुगतान प्राप्त हुआ*\n━━━━━━━━━━━━━━━━━━━━\nखरीदारी के लिए धन्यवाद! फिट रहें, स्वस्थ रहें! 🔥\n📞 ${gymPhone}`;
 
   return {
     text,
@@ -163,7 +384,7 @@ export function generateSaleReceiptWhatsApp(
   };
 }
 
-// Scan memberships and trigger automated email and WhatsApp queue
+// Scan memberships and trigger automated email and WhatsApp queue in Hindi
 export async function runAutomatedExpiryScan(triggeredByUserId?: string) {
   await ensureDefaultTemplates();
   const settings = await GymSettings.findOne();
@@ -222,7 +443,35 @@ export async function runAutomatedExpiryScan(triggeredByUserId?: string) {
 
     const renderedWhatsApp = replaceVars(template.whatsappBody, templateVars);
     const renderedEmailSubject = replaceVars(template.emailSubject, templateVars);
-    const renderedEmailBody = replaceVars(template.emailBody, templateVars);
+
+    // Build rich Hindi HTML email
+    let badgeText = `${daysRemaining} दिन शेष`;
+    let badgeColor = '#ffd166';
+    let statusText = 'समाप्त होने वाली है';
+
+    if (daysRemaining <= 0) {
+      badgeText = '🛑 सदस्यता समाप्त (Expired)';
+      badgeColor = '#ef4444';
+      statusText = 'समाप्त हो चुकी है';
+    } else if (daysRemaining <= 3) {
+      badgeText = '⚠️ 3 दिन शेष (अति आवश्यक)';
+      badgeColor = '#f97316';
+      statusText = 'अंतिम 3 दिन शेष';
+    }
+
+    const renderedEmailHtml = buildHindiEmailTemplate({
+      gymName,
+      gymPhone,
+      title: renderedEmailSubject,
+      subtitle: 'सदस्यता नवीनीकरण सूचना (Membership Renewal Notice)',
+      badgeText,
+      badgeColor,
+      memberName: member.name,
+      planName: plan.name,
+      expiryDate: expiryStr,
+      daysLeftText: daysRemaining <= 0 ? 'समाप्त' : `${daysRemaining} दिन शेष`,
+      statusText,
+    });
 
     // Send Email if member has email
     let emailStatus = 'skipped';
@@ -231,7 +480,7 @@ export async function runAutomatedExpiryScan(triggeredByUserId?: string) {
         await sendEmailDirect({
           to: member.email,
           subject: renderedEmailSubject,
-          html: renderedEmailBody,
+          html: renderedEmailHtml,
         });
         emailStatus = 'sent';
         results.emailsSent++;

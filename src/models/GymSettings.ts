@@ -33,6 +33,7 @@ const schema = new Schema({
   smtpHost: { type: String, default: '', maxlength: 200 },
   smtpPort: { type: Number, default: 587 },
   smtpUser: { type: String, default: '', maxlength: 200 },
+  smtpPass: { type: String, default: '', maxlength: 200 },
   smtpFrom: { type: String, default: '', maxlength: 254 },
   // SMS provider stub
   smsProvider: { type: String, enum: ['none', 'twilio', 'msg91', 'custom'], default: 'none' },

@@ -37,6 +37,11 @@ const settingsSchema = z.object({
   quietHoursEnd: z.string().max(5).optional(),
   instagramUrl: z.string().max(200).optional(),
   mapEmbedUrl: z.string().max(500).optional(),
+  smtpHost: z.string().max(200).optional(),
+  smtpPort: z.number().min(1).max(65535).optional(),
+  smtpUser: z.string().max(200).optional(),
+  smtpPass: z.string().max(200).optional(),
+  smtpFrom: z.string().max(254).optional(),
   smsProvider: z.enum(['none','twilio','msg91','custom']).optional(),
   smsSenderId: z.string().max(20).optional(),
 });
