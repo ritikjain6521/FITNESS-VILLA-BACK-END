@@ -282,7 +282,7 @@ function replaceVars(template: string, vars: Record<string, string>): string {
   return result;
 }
 
-// Send real email direct (Supports Resend HTTP 443 for Render + Nodemailer SMTP for localhost)
+// Send real email direct (Supports Google Apps Script HTTP 443 + Brevo HTTP 443 + Resend HTTP 443 + Nodemailer SMTP)
 export async function sendEmailDirect({
   to,
   subject,
@@ -295,11 +295,70 @@ export async function sendEmailDirect({
   text?: string;
 }) {
   const settings = await GymSettings.findOne();
+  const gymName = settings?.gymName || 'Fitness Villa';
+  const googleScriptUrl = process.env.GOOGLE_SCRIPT_URL || (settings as any)?.googleScriptUrl;
+  const brevoApiKey = process.env.BREVO_API_KEY || (settings as any)?.brevoApiKey;
   const resendApiKey = process.env.RESEND_API_KEY || (settings as any)?.resendApiKey;
 
-  // 1. If Resend API Key is set, send via HTTPS on Port 443 (Bypasses Render SMTP block!)
+  // 1. Google Apps Script Web App (Native Gmail direct from ritikjain6224@gmail.com over HTTPS Port 443, No domain needed!)
+  if (googleScriptUrl) {
+    const res = await fetch(googleScriptUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to,
+        subject,
+        html,
+        text: text || html.replace(/<[^>]*>/g, ''),
+        fromName: gymName,
+      }),
+      redirect: 'follow',
+    });
+
+    const resData = await res.json().catch(() => ({}));
+    if (resData?.success === false) {
+      throw new Error(resData?.error || 'Google Apps Script delivery error');
+    }
+
+    console.log(`[EMAIL SENT VIA GOOGLE APPS SCRIPT HTTP 443] to ${to}`);
+    return { info: resData, isLive: true };
+  }
+
+  // 2. Brevo REST API (HTTPS Port 443, Free 300 emails/day, sends from verified Gmail to any recipient!)
+  if (brevoApiKey) {
+    const senderEmail = settings?.smtpUser || settings?.email || 'ritikjain6224@gmail.com';
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': brevoApiKey.trim(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: gymName, email: senderEmail },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+        textContent: text || html.replace(/<[^>]*>/g, ''),
+      }),
+    });
+
+    const resData = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(resData?.message || 'Brevo HTTP API error');
+    }
+
+    console.log(`[EMAIL SENT VIA BREVO HTTP 443] to ${to} (MessageId: ${resData.messageId})`);
+    return { info: resData, isLive: true };
+  }
+
+  // 3. Resend HTTP API (HTTPS Port 443)
   if (resendApiKey) {
-    const from = process.env.RESEND_FROM || settings?.smtpFrom || 'Fitness Villa <onboarding@resend.dev>';
+    let from = 'Fitness Villa <onboarding@resend.dev>';
+    const customFrom = process.env.RESEND_FROM || settings?.smtpFrom;
+    if (customFrom && !customFrom.includes('@gmail.com') && !customFrom.includes('@yahoo.com') && !customFrom.includes('@hotmail.com')) {
+      from = customFrom;
+    }
+
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -309,6 +368,7 @@ export async function sendEmailDirect({
       body: JSON.stringify({
         from,
         to: [to],
+        reply_to: settings?.smtpUser || settings?.email || 'ritikjain6224@gmail.com',
         subject,
         html,
         text: text || html.replace(/<[^>]*>/g, ''),
@@ -324,10 +384,9 @@ export async function sendEmailDirect({
     return { info: resData, isLive: true };
   }
 
-  // 2. Otherwise send via Nodemailer SMTP (Port 465)
+  // 4. Otherwise send via Nodemailer SMTP (Port 465)
   const transporterObj = await createNodemailerTransporter();
   const from = process.env.SMTP_FROM || settings?.smtpFrom || transporterObj.senderUser || settings?.email || 'noreply@fitnessvilla.in';
-  const gymName = settings?.gymName || 'Fitness Villa';
 
   const info = await transporterObj.transporter.sendMail({
     from: `"${gymName}" <${from}>`,
@@ -356,16 +415,20 @@ export async function testSmtpConnection(
     smtpPass?: string;
     smtpFrom?: string;
     resendApiKey?: string;
+    brevoApiKey?: string;
+    googleScriptUrl?: string;
   }
 ) {
   const settings = await GymSettings.findOne();
+  const googleScriptUrl = overrides?.googleScriptUrl || process.env.GOOGLE_SCRIPT_URL || (settings as any)?.googleScriptUrl;
+  const brevoApiKey = overrides?.brevoApiKey || process.env.BREVO_API_KEY || (settings as any)?.brevoApiKey;
   const resendApiKey = overrides?.resendApiKey || process.env.RESEND_API_KEY || (settings as any)?.resendApiKey;
 
   const gymName = settings?.gymName || 'Fitness Villa';
   const testHtml = buildHindiEmailTemplate({
     gymName,
     gymPhone: settings?.phone || settings?.whatsapp || '9876543210',
-    title: 'परीक्षण ईमेल (SMTP Test Email)',
+    title: 'परीक्षण ईमेल (Delivery Test Email)',
     subtitle: 'ईमेल डिलीवरी सत्यापन सफल',
     badgeText: '✅ टेस्ट ईमेल सफल (Test Email Success)',
     badgeColor: '#22c55e',
@@ -377,9 +440,61 @@ export async function testSmtpConnection(
     callToActionText: 'आपकी ईमेल प्रणाली सही ढंग से कार्य कर रही है। अब सदस्यों को स्वतः एवं मैनुअल ईमेल सीधे उनके इनबॉक्स में प्राप्त होंगे।',
   });
 
-  // 1. If Resend HTTP is available (for Render Production over Port 443):
+  // 1. Google Apps Script Webhook (Port 443)
+  if (googleScriptUrl) {
+    const res = await fetch(googleScriptUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: targetEmail,
+        subject: `[परीक्षण ईमेल] ${gymName} - ईमेल डिलीवरी सत्यापन सफल ✅`,
+        html: testHtml,
+        text: `नमस्ते! ${gymName} की ईमेल प्रणाली सफलतापूर्वक जुड़ चुकी है और ठीक से काम कर रही है।`,
+        fromName: gymName,
+      }),
+      redirect: 'follow',
+    });
+
+    const resData = await res.json().catch(() => ({}));
+    if (resData?.success === false) {
+      throw new Error(resData?.error || 'Google Apps Script delivery error');
+    }
+    return { success: true, messageId: 'google-script-ok', recipient: targetEmail };
+  }
+
+  // 2. Brevo HTTP API (Port 443)
+  if (brevoApiKey) {
+    const senderEmail = overrides?.smtpUser || settings?.smtpUser || settings?.email || 'ritikjain6224@gmail.com';
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': brevoApiKey.trim(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: gymName, email: senderEmail },
+        to: [{ email: targetEmail }],
+        subject: `[परीक्षण ईमेल] ${gymName} - ईमेल डिलीवरी सत्यापन सफल ✅`,
+        htmlContent: testHtml,
+        textContent: `नमस्ते! ${gymName} की ईमेल प्रणाली सफलतापूर्वक जुड़ चुकी है और ठीक से काम कर रही है।`,
+      }),
+    });
+
+    const resData = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(resData?.message || 'Brevo HTTP API error');
+    }
+    return { success: true, messageId: resData.messageId, recipient: targetEmail };
+  }
+
+  // 3. Resend HTTP (Port 443)
   if (resendApiKey) {
-    const from = overrides?.smtpFrom || process.env.RESEND_FROM || settings?.smtpFrom || 'Fitness Villa <onboarding@resend.dev>';
+    let from = 'Fitness Villa <onboarding@resend.dev>';
+    const customFrom = overrides?.smtpFrom || process.env.RESEND_FROM || settings?.smtpFrom;
+    if (customFrom && !customFrom.includes('@gmail.com') && !customFrom.includes('@yahoo.com') && !customFrom.includes('@hotmail.com')) {
+      from = customFrom;
+    }
+
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -389,6 +504,7 @@ export async function testSmtpConnection(
       body: JSON.stringify({
         from,
         to: [targetEmail],
+        reply_to: overrides?.smtpUser || settings?.smtpUser || settings?.email || 'ritikjain6224@gmail.com',
         subject: `[परीक्षण ईमेल] ${gymName} - ईमेल डिलीवरी सत्यापन सफल ✅`,
         html: testHtml,
         text: `नमस्ते! ${gymName} की ईमेल प्रणाली सफलतापूर्वक जुड़ चुकी है और ठीक से काम कर रही है।`,
@@ -403,7 +519,7 @@ export async function testSmtpConnection(
     return { success: true, messageId: resData.id, recipient: targetEmail };
   }
 
-  // 2. Otherwise send via Nodemailer SMTP (Port 465)
+  // 4. Otherwise send via Nodemailer SMTP (Port 465)
   const transporterObj = await createNodemailerTransporter(overrides);
 
   if (!transporterObj.isLive) {
