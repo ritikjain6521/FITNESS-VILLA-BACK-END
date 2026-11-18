@@ -197,11 +197,11 @@ router.post('/send-single', async (req, res, next) => {
 // 4. Test SMTP Email Delivery
 router.post('/test-email', allowRoles('admin'), async (req, res, next) => {
   try {
-    const { to, smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom } = req.body;
+    const { to, smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, resendApiKey } = req.body;
     if (!to) {
       return res.status(400).json({ message: 'परीक्षण ईमेल पता आवश्यक है (Target email required)' });
     }
-    const result = await testSmtpConnection(to, { smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom });
+    const result = await testSmtpConnection(to, { smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, resendApiKey });
     res.json({
       message: `सत्यापन ईमेल सफलतापूर्वक ${to} पर भेज दिया गया है! कृपया इनबॉक्स चेक करें।`,
       result,

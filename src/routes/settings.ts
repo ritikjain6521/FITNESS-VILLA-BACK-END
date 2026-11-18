@@ -37,6 +37,7 @@ const settingsSchema = z.object({
   quietHoursEnd: z.string().max(5).optional(),
   instagramUrl: z.string().max(200).optional(),
   mapEmbedUrl: z.string().max(500).optional(),
+  resendApiKey: z.string().max(200).optional(),
   smtpHost: z.string().max(200).optional(),
   smtpPort: z.number().min(1).max(65535).optional(),
   smtpUser: z.string().max(200).optional(),

@@ -282,7 +282,7 @@ function replaceVars(template: string, vars: Record<string, string>): string {
   return result;
 }
 
-// Send real email direct
+// Send real email direct (Supports Resend HTTP 443 for Render + Nodemailer SMTP for localhost)
 export async function sendEmailDirect({
   to,
   subject,
@@ -295,6 +295,36 @@ export async function sendEmailDirect({
   text?: string;
 }) {
   const settings = await GymSettings.findOne();
+  const resendApiKey = process.env.RESEND_API_KEY || (settings as any)?.resendApiKey;
+
+  // 1. If Resend API Key is set, send via HTTPS on Port 443 (Bypasses Render SMTP block!)
+  if (resendApiKey) {
+    const from = process.env.RESEND_FROM || settings?.smtpFrom || 'Fitness Villa <onboarding@resend.dev>';
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendApiKey.trim()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject,
+        html,
+        text: text || html.replace(/<[^>]*>/g, ''),
+      }),
+    });
+
+    const resData = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(resData?.message || 'Resend HTTP API error');
+    }
+
+    console.log(`[EMAIL SENT VIA RESEND HTTP 443] to ${to} (ID: ${resData.id})`);
+    return { info: resData, isLive: true };
+  }
+
+  // 2. Otherwise send via Nodemailer SMTP (Port 465)
   const transporterObj = await createNodemailerTransporter();
   const from = process.env.SMTP_FROM || settings?.smtpFrom || transporterObj.senderUser || settings?.email || 'noreply@fitnessvilla.in';
   const gymName = settings?.gymName || 'Fitness Villa';
@@ -310,7 +340,7 @@ export async function sendEmailDirect({
   if (!transporterObj.isLive) {
     console.warn(`[EMAIL NOTICE] Email to ${to} was prepared in test/stream mode. To send live emails to member inboxes, configure SMTP credentials in Settings > Email (SMTP) or server/.env.`);
   } else {
-    console.log(`[EMAIL SENT] Live email successfully sent to ${to} (MessageID: ${info.messageId})`);
+    console.log(`[EMAIL SENT VIA SMTP] Live email successfully sent to ${to} (MessageID: ${info.messageId})`);
   }
 
   return { info, isLive: transporterObj.isLive };
@@ -325,17 +355,11 @@ export async function testSmtpConnection(
     smtpUser?: string;
     smtpPass?: string;
     smtpFrom?: string;
+    resendApiKey?: string;
   }
 ) {
   const settings = await GymSettings.findOne();
-  const transporterObj = await createNodemailerTransporter(overrides);
-
-  if (!transporterObj.isLive) {
-    throw new Error('SMTP सेटिंग्स कॉन्फ़िगर नहीं हैं! कृपया Settings पेज या server/.env में SMTP Host, User और App Password दर्ज करें।');
-  }
-
-  // Verify connection
-  await transporterObj.transporter.verify();
+  const resendApiKey = overrides?.resendApiKey || process.env.RESEND_API_KEY || (settings as any)?.resendApiKey;
 
   const gymName = settings?.gymName || 'Fitness Villa';
   const testHtml = buildHindiEmailTemplate({
@@ -352,6 +376,42 @@ export async function testSmtpConnection(
     statusText: 'ईमेल प्रणाली पूरी तरह तैयार है',
     callToActionText: 'आपकी ईमेल प्रणाली सही ढंग से कार्य कर रही है। अब सदस्यों को स्वतः एवं मैनुअल ईमेल सीधे उनके इनबॉक्स में प्राप्त होंगे।',
   });
+
+  // 1. If Resend HTTP is available (for Render Production over Port 443):
+  if (resendApiKey) {
+    const from = overrides?.smtpFrom || process.env.RESEND_FROM || settings?.smtpFrom || 'Fitness Villa <onboarding@resend.dev>';
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendApiKey.trim()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: [targetEmail],
+        subject: `[परीक्षण ईमेल] ${gymName} - ईमेल डिलीवरी सत्यापन सफल ✅`,
+        html: testHtml,
+        text: `नमस्ते! ${gymName} की ईमेल प्रणाली सफलतापूर्वक जुड़ चुकी है और ठीक से काम कर रही है।`,
+      }),
+    });
+
+    const resData = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(resData?.message || 'Resend HTTP API error');
+    }
+
+    return { success: true, messageId: resData.id, recipient: targetEmail };
+  }
+
+  // 2. Otherwise send via Nodemailer SMTP (Port 465)
+  const transporterObj = await createNodemailerTransporter(overrides);
+
+  if (!transporterObj.isLive) {
+    throw new Error('SMTP सेटिंग्स कॉन्फ़िगर नहीं हैं! कृपया Settings पेज या server/.env में SMTP Host, User और App Password दर्ज करें।');
+  }
+
+  // Verify connection
+  await transporterObj.transporter.verify();
 
   const from = overrides?.smtpFrom || process.env.SMTP_FROM || settings?.smtpFrom || transporterObj.senderUser || 'noreply@fitnessvilla.in';
   const info = await transporterObj.transporter.sendMail({

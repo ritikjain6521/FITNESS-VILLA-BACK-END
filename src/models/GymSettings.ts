@@ -30,6 +30,7 @@ const schema = new Schema({
   instagramUrl: { type: String, default: '', maxlength: 200 },
   mapEmbedUrl: { type: String, default: '', maxlength: 500 },
   // Email provider stub
+  resendApiKey: { type: String, default: '', maxlength: 200 },
   smtpHost: { type: String, default: '', maxlength: 200 },
   smtpPort: { type: Number, default: 587 },
   smtpUser: { type: String, default: '', maxlength: 200 },
