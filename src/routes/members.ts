@@ -493,4 +493,130 @@ router.delete('/:id', allowRoles('admin'), async (req, res, next) => {
   }
 });
 
+// 9. Admin send direct email to member
+router.post('/:id/send-email', allowRoles('admin', 'staff'), async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'सदस्य नहीं मिला (Member not found)' });
+    if (!user.email) return res.status(400).json({ message: 'इस सदस्य का कोई ईमेल पंजीकृत नहीं है (No registered email for this member)' });
+
+    const { type = 'welcome', subject, message, password, planName, expiryDate } = req.body;
+
+    const settings = await GymSettings.findOne();
+    const gymName = settings?.gymName || 'Fitness Villa';
+    const gymPhone = settings?.phone || '+91 98765 43210';
+    const portalUrl = 'https://fitness-villa-front-end.vercel.app/login';
+
+    // If new password is provided, update member password
+    if (password && password.trim().length >= 6) {
+      user.passwordHash = await bcrypt.hash(password.trim(), 12);
+      await user.save();
+    }
+
+    let emailHtml = '';
+    let emailSubject = '';
+
+    if (type === 'custom') {
+      emailSubject = subject || `महत्वपूर्ण सूचना - ${gymName}`;
+      emailHtml = `
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${emailSubject}</title>
+</head>
+<body style="margin:0;padding:24px;background-color:#070908;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#f3f4f6;">
+  <div style="max-width:560px;margin:0 auto;background:#101512;border:1px solid #233125;border-radius:12px;padding:26px;box-shadow:0 12px 30px rgba(0,0,0,0.6);">
+    <div style="border-bottom:1px solid #1f2a21;padding-bottom:14px;margin-bottom:18px;">
+      <h2 style="color:#b5f23d;margin:0 0 4px;font-size:22px;">${gymName}</h2>
+      <span style="font-size:12px;color:#9ca3af;">आधिकारिक सदस्य सूचना</span>
+    </div>
+    <p style="font-size:15px;color:#d1d5db;margin-bottom:16px;">
+      नमस्ते <strong style="color:#b5f23d;">${user.name}</strong> जी 🙏,
+    </p>
+    <div style="font-size:14px;line-height:1.7;color:#e5e7eb;white-space:pre-wrap;background:#090d0a;border:1px solid #1f2a21;padding:18px;border-radius:8px;margin-bottom:20px;">${message || ''}</div>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${portalUrl}" style="display:inline-block;background:#b5f23d;color:#090c0a;font-weight:800;font-size:13px;padding:11px 24px;border-radius:6px;text-decoration:none;letter-spacing:0.5px;">
+        सदस्य पोर्टल में लॉगिन करें (Member Portal) →
+      </a>
+    </div>
+    <div style="border-top:1px solid #1f2a21;padding-top:14px;margin-top:20px;font-size:12px;color:#6b7280;display:flex;justify-content:space-between;">
+      <span>📞 सहायता सूत्र: ${gymPhone}</span>
+      <span>टीम ${gymName}</span>
+    </div>
+  </div>
+</body>
+</html>
+      `.trim();
+    } else {
+      // Welcome / Membership & credentials email
+      let finalPlanName = planName;
+      let finalExpiryDate = expiryDate;
+
+      if (!finalPlanName || !finalExpiryDate) {
+        const latestMembership: any = await Membership.findOne({ member: user._id })
+          .populate('plan')
+          .sort({ endDate: -1 });
+
+        if (latestMembership) {
+          if (!finalPlanName) finalPlanName = latestMembership.plan?.name;
+          if (!finalExpiryDate && latestMembership.endDate) {
+            finalExpiryDate = new Date(latestMembership.endDate).toLocaleDateString('hi-IN', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            });
+          }
+        }
+      }
+
+      finalPlanName = finalPlanName || 'मानक सदस्यता (Standard Access)';
+      finalExpiryDate = finalExpiryDate || '—';
+      const statusText = user.status === 'active' ? 'सक्रिय (Active)' : user.status;
+
+      emailSubject = subject || `🎉 ${gymName} - सदस्यता विवरण एवं सदस्य पोर्टल लॉगिन जानकारी`;
+
+      emailHtml = buildNewMemberWelcomeEmailHtml({
+        gymName,
+        gymPhone,
+        portalUrl,
+        memberName: user.name,
+        email: user.email,
+        password: password ? password.trim() : undefined,
+        planName: finalPlanName,
+        expiryDate: finalExpiryDate,
+        status: statusText,
+      });
+    }
+
+    const sendRes = await sendEmailDirect({
+      to: user.email,
+      subject: emailSubject,
+      html: emailHtml,
+      text: message,
+    });
+
+    await NotificationLog.create({
+      member: user.id,
+      templateKey: type === 'welcome' ? 'member_welcome_manual' : 'custom_manual',
+      channel: 'email',
+      recipient: user.email,
+      body: emailSubject,
+      status: 'sent',
+      sentAt: new Date(),
+      triggeredBy: req.user!.id,
+    });
+
+    res.json({
+      success: true,
+      message: sendRes.isLive
+        ? `ईमेल सफलतापूर्वक ${user.email} पर भेज दिया गया!`
+        : `ईमेल तैयार हो गया (नोट: लाइव डिलीवरी के लिए Settings > Email (SMTP) जांचें)।`,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 export default router;
