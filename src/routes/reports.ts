@@ -13,6 +13,7 @@ import Product from '../models/Product.js';
 import Plan from '../models/Plan.js';
 import GymSettings from '../models/GymSettings.js';
 import { requireAuth, allowRoles } from '../middleware/auth.js';
+import { buildNewMemberWelcomeEmailHtml, sendEmailDirect } from '../services/notificationService.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -390,12 +391,15 @@ router.get('/template/:type', (req, res) => {
   if (type === 'members') {
     const sample = [
       {
-        'Full Name': 'John Doe',
-        'Email Address': 'john.doe@example.com',
+        'Full Name': 'Rahul Verma',
+        'Email Address': 'rahul.verma@example.com',
         'Phone Number': '9876543210',
         'Gender': 'male',
         'Address': '123 MG Road, Mumbai',
-        'Initial Password': 'MemberPassword123!',
+        'Initial Password': 'Gym@12345',
+        'Plan Name': 'Strength Only',
+        'Start Date (YYYY-MM-DD)': '2024-01-15',
+        'Send Welcome Email (yes/no)': 'yes',
       },
       {
         'Full Name': 'Priya Sharma',
@@ -403,10 +407,25 @@ router.get('/template/:type', (req, res) => {
         'Phone Number': '9123456789',
         'Gender': 'female',
         'Address': '45 Park Street, Delhi',
-        'Initial Password': 'MemberPassword123!',
+        'Initial Password': 'Gym@12345',
+        'Plan Name': 'Cardio + Strength',
+        'Start Date (YYYY-MM-DD)': '2024-01-15',
+        'Send Welcome Email (yes/no)': 'yes',
       },
     ];
     const ws = XLSX.utils.json_to_sheet(sample);
+    // Set column widths for better readability
+    ws['!cols'] = [
+      { wch: 20 }, // Full Name
+      { wch: 30 }, // Email Address
+      { wch: 15 }, // Phone Number
+      { wch: 10 }, // Gender
+      { wch: 25 }, // Address
+      { wch: 18 }, // Initial Password
+      { wch: 22 }, // Plan Name
+      { wch: 22 }, // Start Date
+      { wch: 25 }, // Send Welcome Email
+    ];
     XLSX.utils.book_append_sheet(wb, ws, 'Members_Template');
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -459,9 +478,12 @@ router.post('/import/members', allowRoles('admin'), upload.single('file'), async
     }
 
     let inserted = 0;
+    let emailsSent = 0;
     const errors: string[] = [];
     const settings = await GymSettings.findOne();
     const prefix = settings?.memberIdPrefix || 'MBR';
+    const gymName = settings?.gymName || 'Fitness Villa';
+    const gymPhone = settings?.phone || '';
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
@@ -471,6 +493,10 @@ router.post('/import/members', allowRoles('admin'), upload.single('file'), async
       const gender = String(row['Gender'] || '').trim().toLowerCase();
       const address = String(row['Address'] || '').trim();
       const rawPass = String(row['Initial Password'] || row['Password'] || 'GymMember123!');
+      const planName = String(row['Plan Name'] || row['Plan'] || '').trim();
+      const startDateRaw = String(row['Start Date (YYYY-MM-DD)'] || row['Start Date'] || '').trim();
+      const sendWelcomeRaw = String(row['Send Welcome Email (yes/no)'] || row['Send Welcome Email'] || 'no').trim().toLowerCase();
+      const shouldSendEmail = sendWelcomeRaw === 'yes' || sendWelcomeRaw === 'true' || sendWelcomeRaw === '1';
 
       if (!name || !email) {
         errors.push(`Row ${i + 2}: Name and Email are required.`);
@@ -502,6 +528,53 @@ router.post('/import/members', allowRoles('admin'), upload.single('file'), async
           address,
         });
 
+        // ── Plan + Membership ───────────────────────────────────
+        let planDoc: any = null;
+        let startDate = startDateRaw ? new Date(startDateRaw) : new Date();
+        let endDate: Date | null = null;
+
+        if (planName) {
+          planDoc = await Plan.findOne({ name: { $regex: new RegExp(planName, 'i') }, active: true });
+          if (planDoc) {
+            if (isNaN(startDate.getTime())) startDate = new Date();
+            endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + (planDoc.durationDays || 30));
+            await Membership.create({
+              member: user._id,
+              plan: planDoc._id,
+              startDate,
+              endDate,
+              status: 'active',
+              createdBy: (req as any).user?._id,
+            });
+          } else {
+            errors.push(`Row ${i + 2}: Plan "${planName}" not found — member created without plan.`);
+          }
+        }
+
+        // ── Welcome Email ───────────────────────────────────────
+        if (shouldSendEmail && email) {
+          try {
+            const html = buildNewMemberWelcomeEmailHtml({
+              memberName: name,
+              email,
+              password: rawPass,
+              planName: planDoc?.name || planName || 'Basic',
+              expiryDate: endDate ? endDate.toLocaleDateString('hi-IN') : '—',
+              gymName,
+              gymPhone,
+            });
+            await sendEmailDirect({
+              to: email,
+              subject: `🏋️ ${gymName} — आपका स्वागत है! लॉगिन विवरण`,
+              html,
+            });
+            emailsSent++;
+          } catch (mailErr: any) {
+            errors.push(`Row ${i + 2}: Email delivery failed — ${mailErr.message}`);
+          }
+        }
+
         inserted++;
       } catch (err: any) {
         errors.push(`Row ${i + 2}: ${err.message}`);
@@ -509,8 +582,9 @@ router.post('/import/members', allowRoles('admin'), upload.single('file'), async
     }
 
     res.json({
-      message: `Import complete. ${inserted} members successfully imported.`,
+      message: `Import complete. ${inserted} members imported, ${emailsSent} welcome emails sent.`,
       inserted,
+      emailsSent,
       totalRows: rows.length,
       errors: errors.slice(0, 20),
     });
