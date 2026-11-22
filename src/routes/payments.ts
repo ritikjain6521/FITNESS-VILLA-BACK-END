@@ -9,7 +9,12 @@ import GymSettings from '../models/GymSettings.js';
 import AuditLog from '../models/AuditLog.js';
 import { allowRoles, requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { generatePaymentReceiptWhatsApp, formatWhatsAppUrl } from '../services/notificationService.js';
+import {
+  generatePaymentReceiptWhatsApp,
+  formatWhatsAppUrl,
+  sendPaymentReceiptNotification,
+  sendDueReminderNotification,
+} from '../services/notificationService.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -104,6 +109,57 @@ router.get('/dues', allowRoles('admin', 'staff', 'member'), async (req, res, nex
   }
 });
 
+// 2b. Send outstanding due reminder email (single or bulk)
+router.post('/dues/send-email', allowRoles('admin', 'staff'), async (req, res, next) => {
+  try {
+    const { membershipId, sendAll } = req.body;
+
+    if (sendAll) {
+      const activeMemberships = await Membership.find({ status: { $in: ['active', 'pending'] } })
+        .populate('member', 'name email phone')
+        .populate('plan', 'name pricePaise');
+
+      let sentCount = 0;
+      const errors: string[] = [];
+
+      for (const m of activeMemberships) {
+        const mem: any = m.member;
+        const plan: any = m.plan;
+        if (!mem || !mem.email || !plan) continue;
+
+        const payments = await Payment.find({ membership: m._id, status: 'paid' });
+        const paidPaise = payments.reduce((sum, p) => sum + p.amountPaise, 0);
+        const duePaise = (plan.pricePaise || 0) - paidPaise;
+
+        if (duePaise > 0) {
+          try {
+            await sendDueReminderNotification({ membershipId: m._id.toString(), actorUserId: req.user!.id });
+            sentCount++;
+          } catch (err: any) {
+            errors.push(`${mem.name}: ${err.message}`);
+          }
+        }
+      }
+
+      return res.json({
+        success: true,
+        sentCount,
+        errors,
+        message: `कुल ${sentCount} सदस्यों को बकाया शुल्क ईमेल सूचना सफलतापूर्वक भेजी गई!`,
+      });
+    }
+
+    if (!membershipId) {
+      return res.status(400).json({ message: 'membershipId आवश्यक है (membershipId required)' });
+    }
+
+    const result = await sendDueReminderNotification({ membershipId, actorUserId: req.user!.id });
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
+
 // 3. Record manual payment receipt
 router.post(
   '/manual',
@@ -161,10 +217,18 @@ router.post(
         },
       });
 
+      // Send payment receipt email to member in background
+      if (member.email) {
+        sendPaymentReceiptNotification({ paymentId: item._id.toString(), actorUserId: req.user!.id }).catch(err => {
+          console.error('[EMAIL ERROR] Failed to send payment receipt:', err.message);
+        });
+      }
+
       res.status(201).json({
         item: populatedPayment,
         whatsappReceiptUrl: whatsapp.url,
         whatsappReceiptText: whatsapp.text,
+        emailSent: !!member.email,
       });
     } catch (e) {
       next(e);
@@ -470,6 +534,13 @@ router.post(
         },
       });
 
+      // Send payment receipt email in background
+      if (payment.member?.email) {
+        sendPaymentReceiptNotification({ paymentId: payment._id.toString(), actorUserId: req.user!.id }).catch(err => {
+          console.error('[RAZORPAY EMAIL] Failed to send receipt:', err.message);
+        });
+      }
+
       res.json({
         message: 'Payment verified',
         payment,
@@ -480,6 +551,16 @@ router.post(
     }
   }
 );
+
+// 6b. Send email receipt on demand for a payment
+router.post('/:id/send-email', allowRoles('admin', 'staff'), async (req, res, next) => {
+  try {
+    const result = await sendPaymentReceiptNotification({ paymentId: String(req.params.id), actorUserId: req.user!.id });
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+});
 
 // 7. Delete payment record
 router.delete('/:id', allowRoles('admin'), async (req, res, next) => {
