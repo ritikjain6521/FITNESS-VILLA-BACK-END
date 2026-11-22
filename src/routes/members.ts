@@ -6,6 +6,8 @@ import Member from '../models/Member.js';
 import AuditLog from '../models/AuditLog.js';
 import Plan from '../models/Plan.js';
 import Membership from '../models/Membership.js';
+import Attendance from '../models/Attendance.js';
+import Payment from '../models/Payment.js';
 import GymSettings from '../models/GymSettings.js';
 import NotificationLog from '../models/NotificationLog.js';
 import { buildNewMemberWelcomeEmailHtml, sendEmailDirect } from '../services/notificationService.js';
@@ -451,43 +453,34 @@ router.patch('/:id', allowRoles('admin', 'staff'), async (req, res, next) => {
   }
 });
 
-// 8. Admin delete / deactivate member
+// 8. Admin permanent delete member and associated records
 router.delete('/:id', allowRoles('admin'), async (req, res, next) => {
   try {
     const before = await User.findById(req.params.id).lean();
     if (!before) return res.status(404).json({ message: 'Member not found' });
 
-    if (req.query.permanent === 'true') {
-      await User.findByIdAndDelete(req.params.id);
-      await Member.findOneAndDelete({ user: req.params.id });
-      await AuditLog.create({
-        actor: req.user!.id,
-        actorEmail: req.user!.email,
-        action: 'member.delete_permanent',
-        targetModel: 'User',
-        targetId: req.params.id,
-        before,
-      });
-      return res.status(200).json({ message: 'Member permanently deleted' });
-    }
+    // Permanently delete user and member profile
+    await User.findByIdAndDelete(req.params.id);
+    await Member.findOneAndDelete({ user: req.params.id });
 
-    const item = await User.findByIdAndUpdate(
-      req.params.id,
-      { active: false, status: 'blocked', statusReason: 'Deactivated by admin' },
-      { new: true }
-    ).select('id');
+    // Cascade delete all associated records (memberships, attendance, payments, notifications)
+    await Promise.all([
+      Membership.deleteMany({ member: req.params.id }),
+      Attendance.deleteMany({ member: req.params.id }),
+      Payment.deleteMany({ member: req.params.id }),
+      NotificationLog.deleteMany({ $or: [{ recipient: req.params.id }, { email: before.email }] }),
+    ]);
 
     await AuditLog.create({
       actor: req.user!.id,
       actorEmail: req.user!.email,
-      action: 'member.block',
+      action: 'member.delete_permanent',
       targetModel: 'User',
       targetId: req.params.id,
       before,
-      after: item?.toObject(),
     });
 
-    res.status(200).json({ message: 'Member deactivated' });
+    res.status(200).json({ message: 'सदस्य और उसका सारा रिकॉर्ड सफलतापूर्वक स्थायी रूप से हटा दिया गया (Member permanently deleted)' });
   } catch (e) {
     next(e);
   }

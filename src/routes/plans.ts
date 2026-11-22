@@ -85,42 +85,24 @@ router.patch('/:id', requireAuth, allowRoles('admin'), async (req, res, next) =>
   }
 });
 
-// DELETE: Deactivate or permanently delete plan (admin only)
+// DELETE: Permanently delete plan (admin only)
 router.delete('/:id', requireAuth, allowRoles('admin'), async (req, res, next) => {
   try {
     const plan = await Plan.findById(req.params.id);
     if (!plan) return res.status(404).json({ message: 'Plan not found' });
 
-    // Check if any memberships are linked
-    const linkedMemberships = await Membership.countDocuments({ plan: req.params.id });
-
-    if (req.query.hard === 'true' && linkedMemberships === 0) {
-      await Plan.findByIdAndDelete(req.params.id);
-      await AuditLog.create({
-        actor: req.user!.id,
-        actorEmail: req.user!.email,
-        action: 'plan.hard_delete',
-        targetModel: 'Plan',
-        targetId: req.params.id,
-        before: plan.toObject(),
-      });
-      return res.json({ message: 'Plan deleted permanently' });
-    }
-
-    // Soft delete / deactivate
-    plan.active = false;
-    await plan.save();
+    await Plan.findByIdAndDelete(req.params.id);
 
     await AuditLog.create({
       actor: req.user!.id,
       actorEmail: req.user!.email,
-      action: 'plan.deactivate',
+      action: 'plan.hard_delete',
       targetModel: 'Plan',
       targetId: req.params.id,
       before: plan.toObject(),
     });
 
-    res.json({ message: 'Plan deactivated successfully', item: plan });
+    res.json({ message: 'Plan deleted permanently' });
   } catch (e) {
     next(e);
   }

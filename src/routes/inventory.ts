@@ -615,12 +615,12 @@ router.get('/sales/:id/receipt', async (req, res, next) => {
   }
 });
 
-// Delete product (soft-delete / deactivate)
+// Delete product (permanent delete)
 router.delete('/products/:id', allowRoles('admin'), async (req, res, next) => {
   try {
-    const item = await Product.findByIdAndUpdate(req.params.id, { active: false }, { new: true });
+    const item = await Product.findByIdAndDelete(req.params.id);
     if (!item) return res.status(404).json({ message: 'Product not found' });
-    res.json({ message: 'Product deleted successfully', item });
+    res.json({ message: 'Product permanently deleted successfully', item });
   } catch (e) {
     next(e);
   }
